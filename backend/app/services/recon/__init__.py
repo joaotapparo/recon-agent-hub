@@ -7,10 +7,26 @@ Pipeline: subfinder (subdominios) -> httpx (hosts ativos) -> nmap (portas)
 Usado pelo worker do pipeline (app/workers/pipeline.py).
 """
 
+import logging
+from concurrent.futures import ThreadPoolExecutor
+
 from sqlalchemy.orm import Session
 
 from app.models import Finding, FindingCategory, ScanJob, ScanStatus, Subdomain
 from app.tool_wrappers import check_takeover, run_httpx, run_nmap, run_subfinder
+
+logger = logging.getLogger(__name__)
+
+_NMAP_MAX_WORKERS = 5
+
+
+def _scan_ports(hostname: str) -> list[dict]:
+    """Roda o nmap pra um host, sem deixar a falha de UM host derrubar o scan inteiro."""
+    try:
+        return run_nmap(hostname)
+    except RuntimeError:
+        logger.warning("Falha ao escanear portas de %s", hostname, exc_info=True)
+        return []
 
 
 def run_recon(db: Session, scan_job: ScanJob) -> list[Subdomain]:
@@ -44,10 +60,11 @@ def run_recon(db: Session, scan_job: ScanJob) -> list[Subdomain]:
 
     scan_job.status = ScanStatus.PORT_SCANNING
     db.commit()
-    for subdomain in subdomains:
-        if subdomain.http_status is None:
-            continue
-        open_ports = run_nmap(subdomain.hostname)
+    targets = [s for s in subdomains if s.http_status is not None]
+    with ThreadPoolExecutor(max_workers=_NMAP_MAX_WORKERS) as executor:
+        port_results = list(executor.map(lambda s: _scan_ports(s.hostname), targets))
+
+    for subdomain, open_ports in zip(targets, port_results):
         subdomain.open_ports = open_ports
         if open_ports:
             db.add(Finding(

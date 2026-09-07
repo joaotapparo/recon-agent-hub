@@ -5,23 +5,27 @@ Usa subprocess + saida XML (parseada com a stdlib) em vez da lib
 mesmo padrao de subprocess dos outros wrappers (subfinder, httpx).
 """
 
-import subprocess
 import xml.etree.ElementTree as ET
 
 from app.config import settings
+from app.tool_wrappers._subprocess import run_tool
 
 
 def run_nmap(host: str) -> list[dict]:
-    """RF03 - identifica portas abertas no host (top 100 portas, scan rapido)."""
-    result = subprocess.run(
+    """RF03 - identifica portas abertas no host (top 100 portas, scan rapido).
+
+    Levanta RuntimeError se o nmap falhar (binario ausente, timeout, codigo
+    de saida != 0, ex.: falta de permissao pra scan SYN). Quem chama por
+    varios hosts deve tratar isso por host, pra falha num host nao derrubar
+    o scan inteiro (ver app/services/recon).
+    """
+    stdout = run_tool(
         [settings.nmap_path, "-T4", "-F", "-oX", "-", host],
-        capture_output=True,
-        text=True,
         timeout=settings.tool_timeout_seconds,
     )
 
     try:
-        root = ET.fromstring(result.stdout)
+        root = ET.fromstring(stdout)
     except ET.ParseError:
         return []
 

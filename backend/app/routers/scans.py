@@ -6,15 +6,20 @@ ponta pela API. A pessoa dona do modulo Painel + Integracao deve revisar
 e expandir conforme a necessidade do frontend (paginacao, filtros, etc.).
 """
 
+from datetime import datetime
+
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.database import get_db
-from app.models import Domain, ScanJob
+from app.models import Domain, ScanJob, ScanStatus
 from app.schemas.scan import ScanJobOut, ScanSubmit
 from app.workers.pipeline import run_scan_job
 
 router = APIRouter(prefix="/api/scans", tags=["scans"])
+
+_ACTIVE_STATUSES = [s for s in ScanStatus if s not in (ScanStatus.COMPLETED, ScanStatus.FAILED)]
 
 
 @router.post("", response_model=ScanJobOut, status_code=201)
@@ -25,14 +30,22 @@ def create_scan(payload: ScanSubmit, background_tasks: BackgroundTasks, db: Sess
             detail="Confirme que voce tem autorizacao para testar este dominio.",
         )
 
+    active_count = db.query(ScanJob).filter(ScanJob.status.in_(_ACTIVE_STATUSES)).count()
+    if active_count >= settings.max_concurrent_scans:
+        raise HTTPException(
+            status_code=409,
+            detail="Numero maximo de scans simultaneos atingido. Tente novamente em instantes.",
+        )
+
     domain = db.query(Domain).filter(Domain.name == payload.domain).first()
     if domain is None:
-        domain = Domain(name=payload.domain, authorized=True)
+        domain = Domain(name=payload.domain, authorized=True, authorized_at=datetime.utcnow())
         db.add(domain)
         db.commit()
         db.refresh(domain)
     elif not domain.authorized:
         domain.authorized = True
+        domain.authorized_at = datetime.utcnow()
         db.commit()
 
     scan_job = ScanJob(domain_id=domain.id)

@@ -5,9 +5,12 @@ em outras partes do projeto - aqui e o binario de linha de comando.
 """
 
 import json
-import subprocess
+import logging
 
 from app.config import settings
+from app.tool_wrappers._subprocess import run_tool
+
+logger = logging.getLogger(__name__)
 
 
 def run_httpx(hosts: list[str]) -> list[dict]:
@@ -19,7 +22,7 @@ def run_httpx(hosts: list[str]) -> list[dict]:
     if not hosts:
         return []
 
-    result = subprocess.run(
+    stdout = run_tool(
         [
             settings.httpx_path,
             "-silent",
@@ -30,19 +33,17 @@ def run_httpx(hosts: list[str]) -> list[dict]:
             "-ip",
         ],
         input="\n".join(hosts),
-        capture_output=True,
-        text=True,
         timeout=settings.tool_timeout_seconds,
     )
 
     probed = []
-    for line in result.stdout.splitlines():
+    for line in stdout.splitlines():
         line = line.strip()
         if not line:
             continue
         try:
             probed.append(json.loads(line))
         except json.JSONDecodeError:
-            continue
+            logger.warning("linha invalida no output json do httpx: %s", line)
 
     return probed
