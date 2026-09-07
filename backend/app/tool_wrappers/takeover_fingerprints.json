@@ -1,0 +1,12 @@
+[
+  {"service": "github-pages", "cname_pattern": "github.io"},
+  {"service": "heroku", "cname_pattern": "herokudns.com"},
+  {"service": "aws-s3", "cname_pattern": "s3.amazonaws.com"},
+  {"service": "shopify", "cname_pattern": "myshopify.com"},
+  {"service": "unbounce", "cname_pattern": "unbouncepages.com"},
+  {"service": "fastly", "cname_pattern": "fastly.net"},
+  {"service": "azure", "cname_pattern": "azurewebsites.net"},
+  {"service": "wordpress", "cname_pattern": "wordpress.com"},
+  {"service": "zendesk", "cname_pattern": "zendesk.com"},
+  {"service": "cargo-collective", "cname_pattern": "cargocollective.com"}
+]

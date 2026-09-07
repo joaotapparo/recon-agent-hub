@@ -7,6 +7,7 @@ from app import (
     models,  # noqa: F401 - garante que os models sao registrados no Base.metadata
 )
 from app.config import settings
+from app.routers import scans
 
 
 @asynccontextmanager
@@ -23,6 +24,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+app.include_router(scans.router)
 
 
 @app.get("/api/health")
