@@ -1,26 +1,39 @@
-"""Wrapper para o subfinder (enumeracao de subdominios)."""
+"""tool_wrappers/subfinder.py - wrapper de enumeracao de subdominios (RF02, issue #2)."""
 
+import json
 import logging
 
 from app.config import settings
-from app.tool_wrappers._subprocess import run_tool
+from app.core.subprocess_runner import run_tool
 
 logger = logging.getLogger(__name__)
 
 
-def run_subfinder(domain: str) -> list[str]:
-    """RF02 - enumera subdominios ativos associados ao dominio informado.
-
-    Levanta RuntimeError se o subfinder falhar (binario ausente, timeout,
-    codigo de saida != 0) - so retorna [domain] quando a ferramenta rodou
-    com sucesso e genuinamente nao achou nenhum subdominio.
+async def run_subfinder(domain: str, scan_job_id: int) -> list[str]:
     """
-    stdout = run_tool(
-        [settings.subfinder_path, "-d", domain, "-silent"],
-        timeout=settings.tool_timeout_seconds,
+    Enumera subdominios ativos do dominio informado. Retorna [domain] se a
+    ferramenta rodar com sucesso mas nao achar nenhum subdominio.
+    """
+    stdout = await run_tool(
+        [settings.subfinder_path, "-d", domain, "-json"],
+        scan_job_id=scan_job_id,
+        tool="subfinder",
     )
 
-    hosts = [line.strip() for line in stdout.splitlines() if line.strip()]
+    hosts: list[str] = []
+    for line in stdout.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            data = json.loads(line)
+        except json.JSONDecodeError:
+            logger.warning("linha invalida no output json do subfinder: %s", line)
+            continue
+        host = data.get("host")
+        if host:
+            hosts.append(host)
+
     if not hosts:
         logger.info("subfinder nao encontrou subdominios para %s; usando so o dominio raiz", domain)
         return [domain]

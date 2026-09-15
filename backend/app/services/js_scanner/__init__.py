@@ -2,9 +2,15 @@
 Servico Codigo Web (dono: outra pessoa do time)
 Requisitos: RF05, RF06, RF07, RF08, RF09
 
-Contrato esperado pelo pipeline (app/workers/pipeline.py):
+Ver tambem as issues #11-#15 no GitHub - elas quebram esse modulo em
+arquivos separados (discovery.py, downloader.py, secret_scanner.py,
+endpoint_extractor.py) em vez de um so scan_hosts() aqui. Esse contrato
+abaixo e o ponto de integracao esperado pelo orchestrator
+(app/services/orchestrator.py), que ainda NAO chama esse modulo (fase-1
+so cobre o recon) - a integracao entra numa fase-2, seguindo o mesmo
+padrao da issue #20 (integracao do ai_triage na fase-3):
 
-    scan_hosts(db: Session, scan_job: ScanJob, live_hosts: list[str]) -> None
+    async def scan_hosts(db: Session, scan_job: ScanJob, live_hosts: list[str]) -> None
 
 Deve, para cada host em `live_hosts`:
 1. Baixar os arquivos JS das paginas ativas (RF05).
@@ -27,7 +33,7 @@ from sqlalchemy.orm import Session
 from app.models import ScanJob
 
 
-def scan_hosts(db: Session, scan_job: ScanJob, live_hosts: list[str]) -> None:
+async def scan_hosts(db: Session, scan_job: ScanJob, live_hosts: list[str]) -> None:
     raise NotImplementedError(
-        "Servico Codigo Web ainda nao implementado - ver docstring deste arquivo."
+        "Servico Codigo Web ainda nao implementado - ver docstring deste arquivo e as issues #11-#15."
     )

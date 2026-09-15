@@ -7,12 +7,16 @@ from app import (
     models,  # noqa: F401 - garante que os models sao registrados no Base.metadata
 )
 from app.config import settings
-from app.routers import scans
+from app.routers import domains, scans
+from app.workers.job_runner import recover_orphaned_jobs, start_worker
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    recover_orphaned_jobs()  # issue #27
+    worker_task = start_worker()  # issue #6
     yield
+    worker_task.cancel()
 
 
 app = FastAPI(title="recon-agent-hub API", version="0.1.0", lifespan=lifespan)
@@ -26,6 +30,7 @@ app.add_middleware(
 )
 
 
+app.include_router(domains.router)
 app.include_router(scans.router)
 
 

@@ -2,9 +2,15 @@
 Servico Agente de IA (dono: outra pessoa do time)
 Requisitos: RF10, RF11, RF12, RF13, RF17
 
-Contrato esperado pelo pipeline (app/workers/pipeline.py):
+Ver tambem as issues #16-#21 no GitHub - elas quebram esse modulo em
+arquivos separados (base.py com a interface AITriageProvider,
+gemini_provider.py, prompt_templates.py, report_builder.py) em vez de um
+so triage_findings() aqui. A issue #20 especificamente cobre a integracao
+deste modulo no app/services/orchestrator.py - hoje o orchestrator
+(fase-1) para depois do recon e nao chama isso ainda. Contrato de
+integracao esperado:
 
-    triage_findings(db: Session, scan_job: ScanJob) -> None
+    async def triage_findings(db: Session, scan_job: ScanJob) -> None
 
 Deve, para cada `Finding` vinculado a `scan_job` com
 `ai_verdict == AIVerdict.PENDING`:
@@ -27,7 +33,7 @@ from sqlalchemy.orm import Session
 from app.models import ScanJob
 
 
-def triage_findings(db: Session, scan_job: ScanJob) -> None:
+async def triage_findings(db: Session, scan_job: ScanJob) -> None:
     raise NotImplementedError(
-        "Servico Agente de IA ainda nao implementado - ver docstring deste arquivo."
+        "Servico Agente de IA ainda nao implementado - ver docstring deste arquivo e as issues #16-#21."
     )

@@ -5,12 +5,6 @@ from pydantic import BaseModel, ConfigDict
 from app.models import AIVerdict, FindingCategory, ScanStatus, Severity
 
 
-class ScanSubmit(BaseModel):
-    domain: str
-    # confirmacao explicita de autorizacao exigida pelo MVP (ver README)
-    authorized: bool
-
-
 class SubdomainOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
