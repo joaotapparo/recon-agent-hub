@@ -78,7 +78,7 @@ toque em recon, scraping ou triagem deve respeitar isso.
 | Config, database, app FastAPI base | `app/config.py`, `app/database.py`, `app/main.py` | ✅ pronto |
 | Migração inicial | `backend/alembic/versions/` | ✅ pronto |
 | Executor de subprocesso assíncrono (issue #5) | `app/core/subprocess_runner.py` | ✅ pronto |
-| Validação anti-SSRF (issue #9, básica) | `app/core/ssrf_guard.py` | ✅ pronto — hardening extra (redirect/DNS rebinding) é a issue #26, ainda não feita |
+| Validação de formato + anti-SSRF (issue #9) | `app/core/domain_validation.py`, `app/core/ssrf_guard.py` | ✅ pronto — hardening extra (redirect/DNS rebinding) é a issue #26, ainda não feita |
 | **Módulo Infraestrutura** (RF02, RF03, RF04 — issues #2, #3, #4, #8) | `app/tool_wrappers/subfinder.py`, `httpx_cli.py`, `nmap.py`, `app/services/recon/takeover_check.py` | ✅ implementado e revisado |
 | Fila de jobs + recuperação de órfãos (issues #6, #27) | `app/workers/job_runner.py` | ✅ pronto |
 | Orquestração do pipeline (issue #7) | `app/services/orchestrator.py` | ✅ pronto — cobre só a fase de recon (fase-1); integração com js_scanner/ai_triage ainda não existe |

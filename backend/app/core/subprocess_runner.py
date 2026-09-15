@@ -2,12 +2,13 @@
 core/subprocess_runner.py - executor de subprocessos com timeout (issue #5).
 
 Helper generico, assincrono, usado por todos os tool_wrappers pra rodar
-binarios externos (subfinder, httpx, nmap). Salva o stdout bruto de cada
-execucao em data/scans/{scan_job_id}/{tool}.json (auditoria/debug) e
-padroniza o tratamento de erro/timeout.
+binarios externos (subfinder, httpx, nmap). Salva stdout e stderr de cada
+execucao em data/scans/{scan_job_id}/{tool}.json (auditoria/debug, inclusive
+quando a ferramenta falha) e padroniza o tratamento de erro/timeout.
 """
 
 import asyncio
+import json
 import logging
 
 from app.config import settings
@@ -53,19 +54,20 @@ async def run_tool(
     stdout = stdout_bytes.decode(errors="replace")
     stderr = stderr_bytes.decode(errors="replace")
 
+    _save_raw_output(scan_job_id, tool, stdout=stdout, stderr=stderr, returncode=proc.returncode)
+
     if proc.returncode != 0:
         raise ToolError(f"{cmd[0]} terminou com codigo {proc.returncode}: {stderr.strip()}")
-
-    _save_raw_output(scan_job_id, tool, stdout)
 
     return stdout
 
 
-def _save_raw_output(scan_job_id: int, tool: str, content: str) -> None:
+def _save_raw_output(scan_job_id: int, tool: str, *, stdout: str, stderr: str, returncode: int) -> None:
     scan_dir = settings.scans_dir / str(scan_job_id)
     try:
         scan_dir.mkdir(parents=True, exist_ok=True)
-        (scan_dir / f"{tool}.json").write_text(content)
+        payload = json.dumps({"stdout": stdout, "stderr": stderr, "returncode": returncode})
+        (scan_dir / f"{tool}.json").write_text(payload)
     except OSError:
         logger.warning(
             "Falha ao salvar saida bruta de %s para scan_job %s", tool, scan_job_id, exc_info=True

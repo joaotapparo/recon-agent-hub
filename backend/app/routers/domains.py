@@ -7,6 +7,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.core.domain_validation import InvalidDomainFormatError, assert_valid_domain_format
 from app.core.ssrf_guard import UnsafeDomainError, assert_domain_is_public
 from app.database import get_db
 from app.models import Domain, ScanJob
@@ -25,8 +26,9 @@ def submit_domain(payload: DomainSubmit, db: Session = Depends(get_db)):
         )
 
     try:
+        assert_valid_domain_format(payload.name)
         assert_domain_is_public(payload.name)
-    except UnsafeDomainError as exc:
+    except (InvalidDomainFormatError, UnsafeDomainError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     domain = db.query(Domain).filter(Domain.name == payload.name).first()
