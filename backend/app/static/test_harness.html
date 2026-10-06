@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Harness de Teste - Infraestrutura</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 760px; margin: 40px auto; padding: 0 20px; color: #222; }
+  .banner { background: #fff3cd; border: 1px solid #ffe69c; padding: 10px 14px; border-radius: 6px; font-size: 14px; margin-bottom: 24px; }
+  label { display: block; margin-top: 14px; font-weight: 600; font-size: 14px; }
+  input[type=text] { width: 100%; padding: 8px; box-sizing: border-box; font-size: 14px; }
+  .checkbox-row { display: flex; align-items: center; gap: 8px; margin-top: 14px; font-weight: normal; }
+  .checkbox-row input { width: auto; }
+  button { margin-top: 18px; padding: 10px 22px; font-size: 14px; cursor: pointer; }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  #status { margin-top: 24px; padding: 14px 16px; border-radius: 8px; background: #f0f0f0; font-weight: 600; display: none; }
+  .status-pending, .status-enumerating, .status-probing, .status-port_scanning, .status-checking_takeover,
+  .status-scanning_js, .status-triaging { background: #fff3cd; }
+  .status-completed { background: #d4edda; }
+  .status-failed { background: #f8d7da; }
+  table { width: 100%; border-collapse: collapse; margin-top: 14px; font-size: 13px; }
+  th, td { border: 1px solid #ccc; padding: 6px 8px; text-align: left; }
+  th { background: #2F5496; color: #fff; }
+  tr:nth-child(even) td { background: #f5f8fc; }
+</style>
+</head>
+<body>
+
+<div class="banner">
+  Ferramenta interna de teste do módulo Infraestrutura. Não é o painel oficial do projeto (ver issues #22-#25).
+</div>
+
+<h1>Testar análise de domínio</h1>
+
+<label for="domain">Domínio a analisar</label>
+<input type="text" id="domain" value="scanme.nmap.org">
+
+<div class="checkbox-row">
+  <input type="checkbox" id="authorized" checked>
+  <label for="authorized" style="margin:0; font-weight: normal;">Confirmo que tenho autorização para testar este domínio</label>
+</div>
+
+<button id="submitBtn">Iniciar análise</button>
+
+<div id="status"></div>
+<div id="results"></div>
+
+<script>
+const submitBtn = document.getElementById('submitBtn');
+const statusDiv = document.getElementById('status');
+const resultsDiv = document.getElementById('results');
+let pollTimer = null;
+
+submitBtn.addEventListener('click', async () => {
+  const domain = document.getElementById('domain').value.trim();
+  const authorized = document.getElementById('authorized').checked;
+
+  if (!domain) { alert('Informe um domínio'); return; }
+  if (!authorized) { alert('Confirme a autorização antes de continuar'); return; }
+
+  if (pollTimer) clearInterval(pollTimer);
+  submitBtn.disabled = true;
+  statusDiv.style.display = 'block';
+  statusDiv.className = '';
+  statusDiv.textContent = 'Enviando...';
+  resultsDiv.innerHTML = '';
+
+  try {
+    const resp = await fetch('/api/domains', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: domain, authorization_confirmed: authorized })
+    });
+    const data = await resp.json();
+
+    if (!resp.ok) {
+      statusDiv.textContent = 'Erro: ' + (data.detail || JSON.stringify(data));
+      statusDiv.className = 'status-failed';
+      submitBtn.disabled = false;
+      return;
+    }
+
+    statusDiv.textContent = `Scan iniciado (scan_job_id=${data.scan_job_id}). Acompanhando...`;
+    pollStatus(data.scan_job_id);
+  } catch (e) {
+    statusDiv.textContent = 'Erro de conexão: ' + e.message;
+    statusDiv.className = 'status-failed';
+    submitBtn.disabled = false;
+  }
+});
+
+function pollStatus(scanJobId) {
+  pollTimer = setInterval(async () => {
+    try {
+      const resp = await fetch(`/api/scans/${scanJobId}`);
+      const data = await resp.json();
+
+      statusDiv.className = 'status-' + data.status;
+      statusDiv.textContent = `Status: ${data.status}` + (data.error_message ? ' — ' + data.error_message : '');
+
+      renderResults(data);
+
+      if (data.status === 'completed' || data.status === 'failed') {
+        clearInterval(pollTimer);
+        submitBtn.disabled = false;
+      }
+    } catch (e) {
+      statusDiv.textContent = 'Erro ao consultar status: ' + e.message;
+    }
+  }, 4000);
+}
+
+function renderResults(data) {
+  let html = '';
+
+  if (data.subdomains && data.subdomains.length > 0) {
+    html += `<h3>Subdomínios encontrados (${data.subdomains.length})</h3>`;
+    html += '<table><tr><th>Host</th><th>Status HTTP</th><th>Portas abertas</th><th>Takeover?</th></tr>';
+    for (const s of data.subdomains) {
+      const ports = (s.open_ports || []).map(p => `${p.port}/${p.service || '?'}`).join(', ') || '-';
+      html += `<tr><td>${s.hostname}</td><td>${s.http_status ?? '-'}</td><td>${ports}</td><td>${s.takeover_candidate ? 'SIM' : 'não'}</td></tr>`;
+    }
+    html += '</table>';
+  }
+
+  if (data.findings && data.findings.length > 0) {
+    html += `<h3>Achados (${data.findings.length})</h3>`;
+    html += '<table><tr><th>Categoria</th><th>Alvo</th><th>Título</th></tr>';
+    for (const f of data.findings) {
+      html += `<tr><td>${f.category}</td><td>${f.target}</td><td>${f.title}</td></tr>`;
+    }
+    html += '</table>';
+  }
+
+  resultsDiv.innerHTML = html;
+}
+</script>
+</body>
+</html>
