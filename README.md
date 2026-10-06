@@ -54,6 +54,19 @@ Confira que tudo está acessível antes de rodar o backend:
 which nmap subfinder httpx gitleaks
 ```
 
+⚠️ **Armadilha confirmada na prática**: o pacote Python `httpx` (dependência
+transitiva do `google-genai`, usado na triagem por IA) instala um script de
+linha de comando *também* chamado `httpx` dentro do ambiente virtual do
+`uv` — e esse script tem prioridade no `PATH` quando rodado via `uv run`,
+na frente do binário de verdade da ProjectDiscovery. O sintoma é o scan
+falhar com `httpx terminou com codigo 1` e uma mensagem pedindo
+`pip install httpx[cli]`. **Corrija isso configurando `HTTPX_PATH` no
+`.env` com o caminho absoluto do binário real** (rode `which httpx` antes
+de ativar o ambiente do `uv`, geralmente `$HOME/go/bin/httpx`):
+```bash
+echo "HTTPX_PATH=$HOME/go/bin/httpx" >> backend/.env
+```
+
 ## Frontend
 
 Requisitos: Node.js 20+.

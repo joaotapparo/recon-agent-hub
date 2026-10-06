@@ -218,3 +218,7 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# httpx -store-response (tool_wrappers/httpx_cli.py) - respostas HTTP
+# brutas salvas localmente, nao deve ir pro git
+backend/output/

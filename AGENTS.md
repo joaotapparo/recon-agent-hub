@@ -79,7 +79,7 @@ toque em recon, scraping ou triagem deve respeitar isso.
 | Migração inicial | `backend/alembic/versions/` | ✅ pronto |
 | Executor de subprocesso assíncrono (issue #5) | `app/core/subprocess_runner.py` | ✅ pronto |
 | Validação de formato + anti-SSRF (issue #9) | `app/core/domain_validation.py`, `app/core/ssrf_guard.py` | ✅ pronto — hardening extra (redirect/DNS rebinding) é a issue #26, ainda não feita |
-| **Módulo Infraestrutura** (RF02, RF03, RF04 — issues #2, #3, #4, #8) | `app/tool_wrappers/subfinder.py`, `httpx_cli.py`, `nmap.py`, `app/services/recon/takeover_check.py` | ✅ implementado e revisado |
+| **Módulo Infraestrutura** (RF02, RF03, RF04 — issues #2, #3, #4, #8) | `app/tool_wrappers/subfinder.py`, `httpx_cli.py`, `nmap.py`, `app/services/recon/takeover_check.py` | ✅ implementado, revisado e **testado em execução real** |
 | Fila de jobs + recuperação de órfãos (issues #6, #27) | `app/workers/job_runner.py` | ✅ pronto |
 | Orquestração do pipeline (issue #7) | `app/services/orchestrator.py` | ✅ pronto — cobre só a fase de recon (fase-1); integração com js_scanner/ai_triage ainda não existe |
 | Endpoints de domínio/scan (RF01, RF15, RF16 — issues #9, #10) | `app/routers/domains.py`, `app/routers/scans.py`, `app/schemas/domain.py`, `app/schemas/scan.py` | ✅ pronto |
@@ -92,16 +92,24 @@ toque em recon, scraping ou triagem deve respeitar isso.
 > ainda não mergeada na `main`. Confira se já foi mergeada antes de basear
 > trabalho novo nela.
 
-> **Não testado em execução real** — foi escrito sem `uv`, `subfinder`,
-> `httpx` ou `nmap` disponíveis no ambiente onde foi feito. Só validado por
-> `py_compile` e revisão de código. Rode e valide antes de confiar 100%,
-> principalmente:
-> - os nomes de campos do JSON do `httpx` usados em
->   `app/services/orchestrator.py` (`input`/`host`, `a`, `tech`);
-> - a flag `-include-response` e o campo `response`/`body` usados em
->   `app/tool_wrappers/httpx_cli.py` e `app/services/recon/takeover_check.py`
->   pra comparação de corpo HTTP no takeover check — conferir contra
->   `httpx -h` e ajustar se o nome mudou de versão.
+> **Testado em execução real em 06/10** (`scanme.nmap.org`, domínio de
+> teste público mantido pelo próprio projeto nmap) — scan completo,
+> `enumerating → probing → port_scanning → checking_takeover → completed`,
+> sem erro. Confirmado: campos do JSON do `httpx` (`input`, `host`, `a`,
+> `status_code`, `title`, `tech`, `body`) batem com o que o código espera;
+> a flag `-include-response` funciona e o campo do corpo HTTP se chama
+> `body` (não `response`); `nmap -sT` identificou as portas 22 e 80
+> corretamente.
+>
+> ⚠️ **Armadilha real encontrada e corrigida**: o pacote Python `httpx`
+> (dependência transitiva do `google-genai`) instala um script de linha de
+> comando também chamado `httpx` dentro do `.venv` do `uv`, que tem
+> prioridade no `PATH` sobre o binário de verdade da ProjectDiscovery.
+> Sintoma: scan falha em `probing` com `httpx terminou com codigo 1` e uma
+> mensagem pedindo `pip install httpx[cli]`. **Sempre configure
+> `HTTPX_PATH` no `.env` com o caminho absoluto** do binário real (`which
+> httpx` antes de ativar o ambiente do `uv`) — ver `.env.example` e
+> `README.md`.
 
 ### Como rodar
 
