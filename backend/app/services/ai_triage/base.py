@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import Protocol
 
-from app.models import AIVerdict, Finding, Severity
+from app.models import AIVerdict, Domain, Finding, Severity
 
 
 @dataclass(frozen=True)
@@ -16,3 +16,7 @@ class TriageResult:
 
 class AITriageProvider(Protocol):
     async def triage(self, finding: Finding) -> TriageResult: ...
+
+    async def generate_report(
+        self, domain: Domain, findings: list[Finding], *, language: str = "pt-BR"
+    ) -> str: ...

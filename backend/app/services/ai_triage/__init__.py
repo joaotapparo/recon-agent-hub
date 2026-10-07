@@ -1,12 +1,13 @@
 """
-Servico Agente de IA (RF10, RF11, RF12, RF17).
+Servico Agente de IA (RF10-RF13).
 
 Sprint 2 (issues #16/#17): interface de provider + integracao inicial com
-Gemini. O prompt ainda e simples e o relatorio (Report, RF13) fica pro Sprint
-3 (#18/#19). A integracao no orchestrator e a issue #20 (Sprint 4) - hoje esse
-modulo so e exercitado por teste.
+Gemini. Sprint 3 (#18/#19): prompts e relatorio Markdown persistido.
+A integracao no orchestrator e a issue #20 (Sprint 4) - hoje esse modulo
+so e exercitado isoladamente.
 """
 
+import asyncio
 import logging
 from datetime import UTC, datetime
 
@@ -16,35 +17,45 @@ from app.config import settings
 from app.models import AIVerdict, Finding, ScanJob
 from app.services.ai_triage.base import AITriageProvider, TriageResult
 from app.services.ai_triage.gemini_provider import GeminiTriageProvider
+from app.services.ai_triage.report_builder import generate_report, load_scan_findings
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["AITriageProvider", "TriageResult", "get_triage_provider", "triage_findings"]
+__all__ = [
+    "AITriageProvider",
+    "TriageResult",
+    "generate_report",
+    "get_triage_provider",
+    "triage_findings",
+]
 
 
 def get_triage_provider() -> AITriageProvider:
     if settings.ai_triage_provider != "gemini":
-        raise ValueError(f"provider de triagem desconhecido: {settings.ai_triage_provider}")
+        raise ValueError(
+            f"provider de triagem desconhecido: {settings.ai_triage_provider}"
+        )
     if not settings.gemini_api_key:
         raise ValueError("GEMINI_API_KEY nao configurada - preencha o backend/.env")
     return GeminiTriageProvider()
 
 
 async def triage_findings(db: Session, scan_job: ScanJob) -> None:
-    provider = get_triage_provider()
-
-    pending = (
-        db.query(Finding)
-        .filter(Finding.scan_job_id == scan_job.id, Finding.ai_verdict == AIVerdict.PENDING)
-        .all()
+    _, pending = await asyncio.to_thread(
+        load_scan_findings, db, scan_job, pending_only=True
     )
+    if not pending:
+        return
+    provider = get_triage_provider()
 
     for finding in pending:
         try:
             result = await provider.triage(finding)
         except Exception:
             # um finding que a IA nao conseguiu julgar nao pode derrubar o scan inteiro
-            logger.exception("falha ao triar finding %s - marcando como needs_review", finding.id)
+            logger.exception(
+                "falha ao triar finding %s - marcando como needs_review", finding.id
+            )
             result = TriageResult(
                 verdict=AIVerdict.NEEDS_REVIEW,
                 confidence=0.0,
@@ -52,7 +63,7 @@ async def triage_findings(db: Session, scan_job: ScanJob) -> None:
             )
         _apply_result(finding, result)
 
-    db.commit()
+    await asyncio.to_thread(db.commit)
 
 
 def _apply_result(finding: Finding, result: TriageResult) -> None:

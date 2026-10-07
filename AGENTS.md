@@ -4,8 +4,8 @@ Este arquivo existe pra qualquer pessoa (ou agente de IA) que for continuar o
 projeto sem ter acompanhado o histórico de decisões. Leia isto antes de
 escrever código.
 
-Escopo completo do projeto: `../Escopo_Projeto (2).docx` (fora deste repo,
-na pasta `pi6/`). Requisitos funcionais RF01-RF17 vêm de lá. **O roadmap
+Escopo completo do projeto: `../Docs/ESCOPO PROJETO 2.pdf` (fora deste repo).
+Requisitos funcionais RF01-RF17 vêm de lá. **O roadmap
 técnico detalhado vive nas [Issues do GitHub](https://github.com/joaotapparo/recon-agent-hub/issues)**,
 organizadas em fases (`fase-0-scaffolding` até `fase-5-hardening`) — este
 arquivo é um resumo do estado atual, as issues são a fonte de verdade pra
@@ -84,13 +84,13 @@ toque em recon, scraping ou triagem deve respeitar isso.
 | Orquestração do pipeline (issue #7) | `app/services/orchestrator.py` | ✅ pronto — cobre só a fase de recon (fase-1); integração com js_scanner/ai_triage ainda não existe |
 | Endpoints de domínio/scan (RF01, RF15, RF16 — issues #9, #10) | `app/routers/domains.py`, `app/routers/scans.py`, `app/schemas/domain.py`, `app/schemas/scan.py` | ✅ pronto |
 | **Módulo Código Web** (RF05-RF09 — issues #11-#15) | `app/services/js_scanner/__init__.py` | 🔲 stub — `NotImplementedError` |
-| **Módulo Agente de IA** (RF10-RF13, RF17 — issues #16-#21) | `app/services/ai_triage/__init__.py` | 🔲 stub — `NotImplementedError` |
+| **Módulo Agente de IA** (RF10-RF13 — issues #16-#19) | `app/services/ai_triage/` | ✅ triagem inicial, prompts e relatório Markdown; integração (#20), endpoint (#21) e avaliação RF17 (#29) pendentes |
 | Painel/frontend (issues #22-#25) | `frontend/app/page.tsx` | 🔲 só placeholder |
 | `docker-compose` opcional (issue #30) | — | 🔲 não implementado, fase-5, não bloqueante |
 
-> **Branch**: esse trabalho está na branch `feature/infra-recon-module`,
-> ainda não mergeada na `main`. Confira se já foi mergeada antes de basear
-> trabalho novo nela.
+> **Branch de trabalho atual**: `dev-local`, com a infraestrutura e a base
+> de IA. Confira a branch e o estado local antes de continuar; a implementação
+> isolada do módulo não significa que ele já esteja integrado ao pipeline.
 
 > **Testado em execução real em 06/10** (`scanme.nmap.org`, domínio de
 > teste público mantido pelo próprio projeto nmap) — scan completo,
@@ -176,6 +176,26 @@ Infraestrutura — não reinventar tratamento de erro nem virar síncrono.
 
 ### Módulo Agente de IA — `app/services/ai_triage/`
 
+Triagem inicial, prompts e relatório Markdown estão implementados isoladamente.
+Não conecte o módulo ao orchestrator nesta sprint: isso é a issue #20.
+O endpoint do relatório é a #21; batching continua pendente da #17.
+Por decisão do usuário em 06/10/2026, deixe os lotes para depois, ou para quando
+forem um impedimento concreto. Essa pendência não impede a demo de poucos achados
+nem a entrega isolada dos prompts e do relatório da sprint 3.
+Os testes atuais verificam contratos e persistência com IA simulada, não a
+taxa de acerto do Gemini real (RF17, issue #29).
+Em 06/10/2026, `demo_ai_report.py --real` confirmou três triagens reais com
+`gemini-3.6-flash`. As primeiras rodadas tiveram 503/timeouts e fallback
+persistido. Depois do ajuste de temperatura para `1.0`, as triagens concluíram,
+mas a síntese esgotou o timeout de 30 segundos. Um teste só da síntese, com
+`GEMINI_TIMEOUT_SECONDS=60` temporário, concluiu na segunda tentativa e confirmou
+o relatório do Gemini persistido e relido. Depois desse teste, o usuário aprovou
+60 segundos como timeout padrão. O smoke valida o fluxo nesse cenário, não
+disponibilidade nem RF17;
+a triagem Stripe ainda afirmou acesso total sem prova de validade/permissões,
+um ponto para revisar na avaliação da issue #29. O script padrão é offline e
+usa um banco separado em `backend/data/demos/`, sem executar scan.
+
 Requisitos: RF10, RF11, RF12, RF13, RF17. Issues #16-#21 (`base.py` com a
 interface `AITriageProvider`, `gemini_provider.py`, `prompt_templates.py`,
 `report_builder.py`, integração no orchestrator, endpoint
@@ -185,7 +205,23 @@ Contrato de integração esperado:
 
 ```python
 async def triage_findings(db: Session, scan_job: ScanJob) -> None
+async def generate_report(db: Session, scan_job: ScanJob, *, language: str = "pt-BR") -> Report
 ```
+
+`triage_findings` mantém seu contrato. A interface `AITriageProvider` continua
+com `triage(finding)` e agora também tem `generate_report(domain, findings,
+language=...) -> str`, retornando Markdown. Só `pt-BR` é aceito por enquanto.
+Providers devem usar `render_report` para manter a estrutura e o mascaramento
+antes de retornar o Markdown; a persistência não altera o texto já renderizado.
+Reutilize essa fronteira ao adicionar idiomas; não assuma a língua do navegador
+nem crie outro provider para tradução. Não compartilhe a sessão entre chamadas
+concorrentes; o acesso síncrono ao banco é enviado para `asyncio.to_thread`.
+
+O relatório preserva os dados triados; Gemini escreve apenas a síntese.
+Pendentes, inconclusivos e positivos sem severidade ficam em revisão; falsos
+positivos entram só na contagem. Falha da síntese gera um relatório básico
+com aviso e `ai_model_used="none"`, sem perder achados. Regenerar atualiza a
+linha existente para o scan. Nenhuma alteração de esquema foi necessária.
 
 Chamado (quando integrado — issue #20) depois do módulo Código Web. Deve,
 para cada `Finding` de `scan_job` com `ai_verdict == AIVerdict.PENDING`:
@@ -243,10 +279,10 @@ TODO:
 | RF07 | Candidatos a secrets | `app/services/js_scanner/` 🔲 |
 | RF08 | Arquivos sensíveis expostos | `app/services/js_scanner/` 🔲 |
 | RF09 | Arquivo sensível = achado crítico direto | `app/services/js_scanner/` 🔲 |
-| RF10 | Enviar candidatos pra IA | `app/services/ai_triage/` 🔲 |
-| RF11 | IA classifica falso positivo x real | `app/services/ai_triage/` 🔲 |
-| RF12 | IA estima severidade | `app/services/ai_triage/` 🔲 |
-| RF13 | Gerar relatório técnico | `app/services/ai_triage/` 🔲 |
+| RF10 | Enviar candidatos pra IA | `app/services/ai_triage/` ✅ módulo isolado; integração pendente |
+| RF11 | IA classifica falso positivo x real | `app/services/ai_triage/` ✅ módulo isolado; validação real pendente |
+| RF12 | IA estima severidade | `app/services/ai_triage/` ✅ módulo isolado; validação real pendente |
+| RF13 | Gerar relatório técnico | `app/services/ai_triage/report_builder.py` ✅ Markdown persistido; API pendente |
 | RF14 | Painel mostra tudo | `frontend/` 🔲 |
 | RF15 | Acompanhamento de status | `app/routers/scans.py` ✅ (API) / `frontend/` 🔲 (UI) |
 | RF16 | Histórico no banco | `app/routers/domains.py::list_domains` ✅ |

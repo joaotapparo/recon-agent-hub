@@ -30,6 +30,89 @@ uv run uvicorn app.main:app --reload
 
 API disponível em `http://localhost:8000`, docs interativas em `/docs`.
 
+### Triagem e relatório de IA — sprint 3
+
+O módulo de IA já faz triagem e gera um relatório Markdown salvo na tabela
+`reports`. Ainda não é chamado pelo pipeline: essa integração e o endpoint
+do relatório ficam nas issues #20 e #21, da sprint 4.
+
+As duas funções usam a sessão e o scan existentes, sempre de um domínio
+autorizado:
+
+```python
+from app.services.ai_triage import generate_report, triage_findings
+
+await triage_findings(db, scan_job)
+report = await generate_report(db, scan_job, language="pt-BR")
+```
+
+Por enquanto, só `pt-BR` é suportado. O idioma já é um parâmetro para o front
+poder informar a preferência do usuário quando outros idiomas forem adicionados.
+Os nomes técnicos, URLs e comandos são preservados, exceto valores sensíveis.
+
+`GEMINI_TEMPERATURE=1.0` mantém o padrão recomendado pelo Google para Gemini 3.x.
+Confira também seu `.env`: ele tem prioridade sobre o valor padrão do código.
+
+O Gemini escreve a síntese; o código organiza os achados confirmados por
+severidade, separa os que precisam de revisão e inclui evidência, reprodução
+e correção. Falsos positivos entram apenas na contagem. Secrets são mascarados
+antes de sair para a IA e no relatório. Se a síntese falhar, os dados continuam
+em um relatório básico com o aviso de indisponibilidade e `ai_model_used="none"`.
+Um scan sem achados não é declarado seguro. Gerar novamente atualiza o relatório
+do mesmo scan, sem criar outra linha no banco.
+
+Para conferir o módulo sem usar a API do Gemini:
+
+```bash
+cd backend
+uv run pytest -q
+uv run python demo_ai_triage.py --mock
+```
+
+Os testes do relatório usam SQLite temporário e respostas simuladas do Gemini.
+A persistência é conferida por outra sessão do banco; isso não valida a
+qualidade das respostas do modelo real.
+
+Para mostrar uma demonstração ao orientador, com dados fictícios e sem scan:
+
+```bash
+cd backend
+uv run python demo_ai_report.py         # offline, sem usar a API
+uv run python demo_ai_report.py --real  # Gemini real, usando somente dados fictícios
+```
+
+Cada rodada cria uma pasta própria em `backend/data/demos/`, ignorada pelo Git,
+com `relatorio.md`, `validacao.json` e um SQLite `demo.db`. O banco normal do
+projeto não é alterado. A demo identifica claramente resultados simulados e
+permite conferir a persistência por outra sessão.
+
+Para repetir só a síntese, sem gastar chamadas com as triagens já salvas:
+
+```bash
+uv run python demo_ai_report.py --real --retry-summary data/demos/gemini-IDENTIFICADOR
+```
+
+Isso atualiza o relatório no banco da demo e cria `relatorio-resumo.md` e
+`validacao-resumo.json`, preservando os arquivos da primeira tentativa.
+
+Na validação real de 06/10/2026, houve HTTP 503 e timeouts nas primeiras rodadas.
+Com temperatura `1.0`, os três candidatos receberam respostas válidas do
+`gemini-3.6-flash`, mas a síntese esgotou o timeout de 30 segundos. No teste
+seguinte, apenas da síntese e com timeout temporário de 60 segundos, a segunda
+tentativa concluiu. O relatório com o resumo do Gemini foi salvo e relido;
+os arquivos do fallback anterior foram preservados. Isso valida geração e
+persistência nesse cenário, não acurácia (RF17) nem disponibilidade contínua.
+
+Para repetir esse teste sem mudar o `.env`:
+
+```bash
+GEMINI_TIMEOUT_SECONDS=60 uv run python demo_ai_report.py --real --retry-summary data/demos/gemini-IDENTIFICADOR
+```
+
+O timeout padrão agora é de 60 segundos e continua configurável no `.env`.
+Os lotes da issue #17 foram adiados por decisão do usuário; não impedem essa
+entrega isolada da sprint 3.
+
 ### Ferramentas externas necessárias
 
 Essas ferramentas **não são bibliotecas Python** — não entram no `pyproject.toml`
