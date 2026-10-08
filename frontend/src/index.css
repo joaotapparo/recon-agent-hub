@@ -1,0 +1,40 @@
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-display: 'Rajdhani', sans-serif;
+  --font-mono: 'Share Tech Mono', 'JetBrains Mono', monospace;
+
+  /* Noir Palette: Pure black, neutral deep zincs, crisp high-contrast white */
+  --color-bg: #09090b;
+  --color-surface: #121214;
+  --color-surface-2: #18181b;
+  --color-surface-3: #27272a;
+  --color-foreground: #fafafa;
+  --color-muted: #71717a;
+  --color-subtle: #a1a1aa;
+  --color-accent: #ffffff;
+  --color-border: #1f1f23;
+  --color-border-2: #2e2e33;
+  --color-crit: #f87171;
+  --color-high: #fb923c;
+  --color-med: #facc15;
+  --color-low: #94a3b8;
+  --color-ok: #22c55e;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  background-color: #09090b;
+  color: #fafafa;
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.12); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.25); }
