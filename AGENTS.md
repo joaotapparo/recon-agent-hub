@@ -81,10 +81,10 @@ toque em recon, scraping ou triagem deve respeitar isso.
 | Validação de formato + anti-SSRF (issue #9) | `app/core/domain_validation.py`, `app/core/ssrf_guard.py` | ✅ pronto — hardening extra (redirect/DNS rebinding) é a issue #26, ainda não feita |
 | **Módulo Infraestrutura** (RF02, RF03, RF04 — issues #2, #3, #4, #8) | `app/tool_wrappers/subfinder.py`, `httpx_cli.py`, `nmap.py`, `app/services/recon/takeover_check.py` | ✅ implementado, revisado e **testado em execução real** |
 | Fila de jobs + recuperação de órfãos (issues #6, #27) | `app/workers/job_runner.py` | ✅ pronto |
-| Orquestração do pipeline (issue #7) | `app/services/orchestrator.py` | ✅ pronto — cobre só a fase de recon (fase-1); integração com js_scanner/ai_triage ainda não existe |
+| Orquestração do pipeline (issues #7, #20) | `app/services/orchestrator.py` | ✅ pronto — recon → scanning_js → triaging → report (triagem IA pulada com aviso se GEMINI_API_KEY ausente) |
 | Endpoints de domínio/scan (RF01, RF15, RF16 — issues #9, #10) | `app/routers/domains.py`, `app/routers/scans.py`, `app/schemas/domain.py`, `app/schemas/scan.py` | ✅ pronto |
-| **Módulo Código Web** (RF05-RF09 — issues #11-#15) | `app/services/js_scanner/__init__.py` | 🔲 stub — `NotImplementedError` |
-| **Módulo Agente de IA** (RF10-RF13 — issues #16-#19) | `app/services/ai_triage/` | ✅ triagem inicial, prompts e relatório Markdown; integração (#20), endpoint (#21) e avaliação RF17 (#29) pendentes |
+| **Módulo Código Web** (RF05-RF09 — issues #11-#15, #31) | `app/services/js_scanner/{discovery,downloader,endpoint_extractor,secret_scanner,sensitive_files}.py` | ✅ implementado e integrado ao pipeline; testado com unit + integração (mock de rede) |
+| **Módulo Agente de IA** (RF10-RF13 — issues #16-#19) | `app/services/ai_triage/` | ✅ triagem, prompts e relatório Markdown; integrado no pipeline (#20); endpoint (#21) feito; avaliação RF17 (#29) ainda só com IA simulada |
 | Painel/frontend (issues #22-#25) | `frontend/app/page.tsx` | 🔲 só placeholder |
 | `docker-compose` opcional (issue #30) | — | 🔲 não implementado, fase-5, não bloqueante |
 
@@ -248,6 +248,8 @@ API já disponível:
   Retorna `{"domain_id": int, "scan_job_id": int}`. Bloqueia (400) se
   `authorization_confirmed` não vier `true`, ou se o domínio resolver pra
   IP privado (anti-SSRF) — reflita a confirmação explícita na UI.
+- `GET /api/scans/{id}/findings` — lista achados do scan, filtros `category`/`severity`/`verdict` (RF14).
+- `GET /api/scans/{id}/report` — relatório gerado (JSON); `GET /api/scans/{id}/report.md` baixa o Markdown (RF13).
 - `GET /api/scans/{id}` — status atual (`ScanStatus`: `pending`,
   `enumerating`, `probing`, `port_scanning`, `checking_takeover`,
   `scanning_js`, `triaging`, `completed`, `failed`) + `subdomains` +
@@ -274,15 +276,15 @@ TODO:
 | RF02 | Enumerar subdomínios | `app/tool_wrappers/subfinder.py` ✅ |
 | RF03 | Portas abertas / hosts ativos | `app/tool_wrappers/nmap.py`, `httpx_cli.py` ✅ |
 | RF04 | Risco de subdomain takeover | `app/services/recon/takeover_check.py` ✅ |
-| RF05 | Baixar JS das páginas | `app/services/js_scanner/` 🔲 |
-| RF06 | Extrair endpoints do JS | `app/services/js_scanner/` 🔲 |
-| RF07 | Candidatos a secrets | `app/services/js_scanner/` 🔲 |
-| RF08 | Arquivos sensíveis expostos | `app/services/js_scanner/` 🔲 |
-| RF09 | Arquivo sensível = achado crítico direto | `app/services/js_scanner/` 🔲 |
-| RF10 | Enviar candidatos pra IA | `app/services/ai_triage/` ✅ módulo isolado; integração pendente |
+| RF05 | Baixar JS das páginas | `js_scanner/discovery.py`, `downloader.py` ✅ |
+| RF06 | Extrair endpoints do JS | `js_scanner/endpoint_extractor.py` ✅ |
+| RF07 | Candidatos a secrets | `js_scanner/secret_scanner.py` (gitleaks + fallback regex) ✅ |
+| RF08 | Arquivos sensíveis expostos | `js_scanner/sensitive_files.py` ✅ |
+| RF09 | Arquivo sensível = achado crítico direto | `js_scanner/sensitive_files.py` + `__init__.py` ✅ |
+| RF10 | Enviar candidatos pra IA | `app/services/ai_triage/` ✅ integrado (#20) |
 | RF11 | IA classifica falso positivo x real | `app/services/ai_triage/` ✅ módulo isolado; validação real pendente |
 | RF12 | IA estima severidade | `app/services/ai_triage/` ✅ módulo isolado; validação real pendente |
-| RF13 | Gerar relatório técnico | `app/services/ai_triage/report_builder.py` ✅ Markdown persistido; API pendente |
+| RF13 | Gerar relatório técnico | `report_builder.py` + `routers/reports.py` ✅ |
 | RF14 | Painel mostra tudo | `frontend/` 🔲 |
 | RF15 | Acompanhamento de status | `app/routers/scans.py` ✅ (API) / `frontend/` 🔲 (UI) |
 | RF16 | Histórico no banco | `app/routers/domains.py::list_domains` ✅ |

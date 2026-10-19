@@ -1,14 +1,9 @@
 """
-services/orchestrator.py - pipeline do scan (RF02-RF04, issue #7).
+services/orchestrator.py - pipeline do scan (issues #7 e #20).
 
-Coordena enum -> probe -> port_scan -> checking_takeover pra um scan_job,
-atualizando o status no banco a cada etapa e persistindo Subdomain/Finding
-conforme os wrappers retornam dados.
-
-Fase-1 (atual): o pipeline termina aqui e marca o job como completed - a
-integracao com o modulo Codigo Web (fase-2) e o Agente de IA (fase-3,
-issue #20) ainda nao existe, porque esses modulos ainda sao stubs
-(ver app/services/js_scanner/ e app/services/ai_triage/).
+Coordena enum -> probe -> port_scan -> checking_takeover -> scanning_js ->
+triaging pra um scan_job, atualizando o status no banco a cada etapa e
+persistindo Subdomain/Finding/Report conforme os modulos retornam dados.
 """
 
 import asyncio
@@ -20,6 +15,7 @@ from sqlalchemy.orm import Session
 from app.core.subprocess_runner import ToolError
 from app.database import SessionLocal
 from app.models import Finding, FindingCategory, ScanJob, ScanStatus, Subdomain
+from app.services import ai_triage, js_scanner
 from app.services.recon.takeover_check import check_takeover
 from app.tool_wrappers.httpx_cli import run_httpx
 from app.tool_wrappers.nmap import run_nmap
@@ -104,8 +100,24 @@ async def run_scan_job(scan_job_id: int) -> None:
                 ))
         db.commit()
 
-        # Fase-1 termina aqui. Fases seguintes (js_scanner, ai_triage)
-        # vao estender este pipeline antes de marcar completed.
+        scan_job.status = ScanStatus.SCANNING_JS
+        db.commit()
+        live_hosts = [
+            js_scanner.LiveHost(
+                subdomain_id=s.id,
+                hostname=s.hostname,
+                url=probed_by_host[s.hostname].get("url") or f"https://{s.hostname}",
+                body=probed_by_host[s.hostname].get("body"),
+            )
+            for s in targets
+        ]
+        await js_scanner.scan_hosts(db, scan_job, live_hosts)
+
+        scan_job.status = ScanStatus.TRIAGING
+        db.commit()
+        await _triage(db, scan_job)
+        await ai_triage.generate_report(db, scan_job)
+
         scan_job.status = ScanStatus.COMPLETED
         scan_job.finished_at = datetime.utcnow()
         db.commit()
@@ -130,3 +142,16 @@ async def _scan_ports(hostname: str, scan_job_id: int) -> list[dict]:
     except ToolError:
         logger.warning("Falha ao escanear portas de %s", hostname, exc_info=True)
         return []
+
+
+async def _triage(db: Session, scan_job: ScanJob) -> None:
+    """
+    Sem GEMINI_API_KEY o scan nao falha: os achados ficam pending e o
+    relatorio sai no modo basico (generate_report ja trata esse caso).
+    """
+    try:
+        await ai_triage.triage_findings(db, scan_job)
+    except ValueError:
+        logger.warning(
+            "triagem por IA pulada no scan %s - provider nao configurado", scan_job.id, exc_info=True
+        )

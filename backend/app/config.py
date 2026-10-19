@@ -29,6 +29,12 @@ class Settings(BaseSettings):
     gitleaks_path: str = "gitleaks"
 
     tool_timeout_seconds: int = 300
+
+    # modulo Codigo Web (app/services/js_scanner/)
+    http_timeout_seconds: int = 10
+    js_max_file_bytes: int = 5 * 1024 * 1024
+    max_js_files_per_scan: int = 300
+    sensitive_file_max_bytes: int = 64 * 1024
     max_concurrent_scans: int = 1
 
     cors_origins: list[str] = ["http://localhost:3000"]
