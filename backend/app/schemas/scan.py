@@ -21,6 +21,8 @@ class SubdomainOut(BaseModel):
 class FindingOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
+    id: int
+    subdomain_id: int | None = None
     category: FindingCategory
     source_tool: str
     title: str
@@ -29,6 +31,27 @@ class FindingOut(BaseModel):
     ai_severity: Severity | None = None
     ai_reasoning: str | None = None
     ai_reproduction_steps: str | None = None
+
+
+class FindingDetailOut(FindingOut):
+    """GET /api/scans/{id}/findings - inclui a evidencia (secrets ja vem mascarados do js_scanner)."""
+
+    raw_evidence: dict | str | list | None = None
+    ai_confidence: float | None = None
+    ai_remediation: str | None = None
+    created_at: datetime
+    triaged_at: datetime | None = None
+
+
+class ReportOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    scan_job_id: int
+    domain_id: int
+    summary: str | None = None
+    markdown_content: str
+    ai_model_used: str
+    generated_at: datetime
 
 
 class ScanJobOut(BaseModel):

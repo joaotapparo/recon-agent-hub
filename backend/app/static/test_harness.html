@@ -124,14 +124,26 @@ function renderResults(data) {
 
   if (data.findings && data.findings.length > 0) {
     html += `<h3>Achados (${data.findings.length})</h3>`;
-    html += '<table><tr><th>Categoria</th><th>Alvo</th><th>Título</th></tr>';
+    html += '<table><tr><th>Categoria</th><th>Veredito</th><th>Severidade</th><th>Alvo</th><th>Título</th></tr>';
     for (const f of data.findings) {
-      html += `<tr><td>${f.category}</td><td>${f.target}</td><td>${f.title}</td></tr>`;
+      html += `<tr><td>${f.category}</td><td>${f.ai_verdict ?? '-'}</td><td>${f.ai_severity ?? '-'}</td><td>${f.target}</td><td>${f.title}</td></tr>`;
     }
     html += '</table>';
   }
 
+  if (data.status === 'completed') {
+    html += `<h3>Relatório</h3><p><a href="/api/scans/${data.id}/report.md" target="_blank">Baixar relatório (Markdown)</a></p>`;
+    html += `<pre id="reportBox" style="white-space:pre-wrap;background:#f5f8fc;border:1px solid #ccc;padding:12px;border-radius:6px;font-size:12px;max-height:400px;overflow:auto;">carregando relatório…</pre>`;
+  }
+
   resultsDiv.innerHTML = html;
+
+  if (data.status === 'completed') {
+    fetch(`/api/scans/${data.id}/report`)
+      .then(r => r.ok ? r.json() : Promise.reject(r.status))
+      .then(rep => { document.getElementById('reportBox').textContent = rep.markdown_content; })
+      .catch(() => { const b = document.getElementById('reportBox'); if (b) b.textContent = 'Relatório ainda não disponível.'; });
+  }
 }
 </script>
 </body>
