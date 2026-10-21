@@ -84,7 +84,7 @@ toque em recon, scraping ou triagem deve respeitar isso.
 | Orquestração do pipeline (issues #7, #20) | `app/services/orchestrator.py` | ✅ pronto — recon → scanning_js → triaging → report (triagem IA pulada com aviso se GEMINI_API_KEY ausente) |
 | Endpoints de domínio/scan (RF01, RF15, RF16 — issues #9, #10) | `app/routers/domains.py`, `app/routers/scans.py`, `app/schemas/domain.py`, `app/schemas/scan.py` | ✅ pronto |
 | **Módulo Código Web** (RF05-RF09 — issues #11-#15, #31) | `app/services/js_scanner/{discovery,downloader,endpoint_extractor,secret_scanner,sensitive_files}.py` | ✅ implementado e integrado ao pipeline; testado com unit + integração (mock de rede) |
-| **Módulo Agente de IA** (RF10-RF13 — issues #16-#19) | `app/services/ai_triage/` | ✅ triagem, prompts e relatório Markdown; integrado no pipeline (#20); endpoint (#21) feito; avaliação RF17 (#29) ainda só com IA simulada |
+| **Módulo Agente de IA** (RF10-RF13 — issues #16-#19, #32) | `app/services/ai_triage/` | ✅ triagem em lotes (#17), prompts e relatório Markdown/PDF (#32); integrado no pipeline (#20); endpoints (#21) feitos; avaliação RF17 (#29) ainda não implementada |
 | Painel/frontend (issues #22-#25) | `frontend/app/page.tsx` | 🔲 só placeholder |
 | `docker-compose` opcional (issue #30) | — | 🔲 não implementado, fase-5, não bloqueante |
 
@@ -176,14 +176,15 @@ Infraestrutura — não reinventar tratamento de erro nem virar síncrono.
 
 ### Módulo Agente de IA — `app/services/ai_triage/`
 
-Triagem inicial, prompts e relatório Markdown estão implementados isoladamente.
-Não conecte o módulo ao orchestrator nesta sprint: isso é a issue #20.
-O endpoint do relatório é a #21; batching continua pendente da #17.
-Por decisão do usuário em 06/10/2026, deixe os lotes para depois, ou para quando
-forem um impedimento concreto. Essa pendência não impede a demo de poucos achados
-nem a entrega isolada dos prompts e do relatório da sprint 3.
+Triagem em lotes, prompts e relatório Markdown/PDF estão implementados, e o
+módulo já roda no orchestrator depois do Código Web (#20).
+A triagem agrupa os achados pendentes por categoria, até
+`settings.ai_triage_batch_size` (padrão 10) por chamada (#17). Cada resultado
+volta com `finding_id`; achado ausente, repetido ou de um lote que falhou vira
+`NEEDS_REVIEW`, sem derrubar os outros lotes. O tamanho do lote e o timeout de
+60 segundos ainda não foram calibrados com o Gemini real triando em lote.
 Os testes atuais verificam contratos e persistência com IA simulada, não a
-taxa de acerto do Gemini real (RF17, issue #29).
+taxa de acerto do Gemini real (RF17, issue #29, ainda não implementada).
 Em 06/10/2026, `demo_ai_report.py --real` confirmou três triagens reais com
 `gemini-3.6-flash`. As primeiras rodadas tiveram 503/timeouts e fallback
 persistido. Depois do ajuste de temperatura para `1.0`, as triagens concluíram,
@@ -208,9 +209,9 @@ async def triage_findings(db: Session, scan_job: ScanJob) -> None
 async def generate_report(db: Session, scan_job: ScanJob, *, language: str = "pt-BR") -> Report
 ```
 
-`triage_findings` mantém seu contrato. A interface `AITriageProvider` continua
-com `triage(finding)` e agora também tem `generate_report(domain, findings,
-language=...) -> str`, retornando Markdown. Só `pt-BR` é aceito por enquanto.
+`triage_findings` mantém seu contrato. A interface `AITriageProvider` tem
+`triage_batch(findings) -> dict[int, TriageResult]`, com `finding.id` como chave,
+e `generate_report(domain, findings, language=...) -> str`, retornando Markdown. Só `pt-BR` é aceito por enquanto.
 Providers devem usar `render_report` para manter a estrutura e o mascaramento
 antes de retornar o Markdown; a persistência não altera o texto já renderizado.
 Reutilize essa fronteira ao adicionar idiomas; não assuma a língua do navegador
@@ -222,8 +223,12 @@ Pendentes, inconclusivos e positivos sem severidade ficam em revisão; falsos
 positivos entram só na contagem. Falha da síntese gera um relatório básico
 com aviso e `ai_model_used="none"`, sem perder achados. Regenerar atualiza a
 linha existente para o scan. Nenhuma alteração de esquema foi necessária.
+`report_pdf.py` gera o PDF na hora a partir de `markdown_content`, com
+`xhtml2pdf` + Jinja2 e uma `ResourceAccessPolicy` fechada: a renderização não
+busca URL nem lê arquivo local. Não troque por WeasyPrint: ele exige libs de
+sistema (pango) e complica o setup no Windows, que é o sistema da maior parte do time.
 
-Chamado (quando integrado — issue #20) depois do módulo Código Web. Deve,
+Chamado pelo orchestrator (#20) depois do módulo Código Web. Deve,
 para cada `Finding` de `scan_job` com `ai_verdict == AIVerdict.PENDING`:
 
 1. Classificar como falso positivo ou achado real usando `raw_evidence`
@@ -249,7 +254,7 @@ API já disponível:
   `authorization_confirmed` não vier `true`, ou se o domínio resolver pra
   IP privado (anti-SSRF) — reflita a confirmação explícita na UI.
 - `GET /api/scans/{id}/findings` — lista achados do scan, filtros `category`/`severity`/`verdict` (RF14).
-- `GET /api/scans/{id}/report` — relatório gerado (JSON); `GET /api/scans/{id}/report.md` baixa o Markdown (RF13).
+- `GET /api/scans/{id}/report` — relatório gerado (JSON); `GET /api/scans/{id}/report.md` baixa o Markdown e `GET /api/scans/{id}/report.pdf` baixa o PDF (RF13).
 - `GET /api/scans/{id}` — status atual (`ScanStatus`: `pending`,
   `enumerating`, `probing`, `port_scanning`, `checking_takeover`,
   `scanning_js`, `triaging`, `completed`, `failed`) + `subdomains` +
@@ -284,7 +289,7 @@ TODO:
 | RF10 | Enviar candidatos pra IA | `app/services/ai_triage/` ✅ integrado (#20) |
 | RF11 | IA classifica falso positivo x real | `app/services/ai_triage/` ✅ módulo isolado; validação real pendente |
 | RF12 | IA estima severidade | `app/services/ai_triage/` ✅ módulo isolado; validação real pendente |
-| RF13 | Gerar relatório técnico | `report_builder.py` + `routers/reports.py` ✅ |
+| RF13 | Gerar relatório técnico | `report_builder.py` + `report_pdf.py` + `routers/reports.py` ✅ (Markdown e PDF) |
 | RF14 | Painel mostra tudo | `frontend/` 🔲 |
 | RF15 | Acompanhamento de status | `app/routers/scans.py` ✅ (API) / `frontend/` 🔲 (UI) |
 | RF16 | Histórico no banco | `app/routers/domains.py::list_domains` ✅ |

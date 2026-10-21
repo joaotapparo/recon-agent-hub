@@ -1,14 +1,14 @@
 """
 Servico Agente de IA (RF10-RF13).
 
-Sprint 2 (issues #16/#17): interface de provider + integracao inicial com
-Gemini. Sprint 3 (#18/#19): prompts e relatorio Markdown persistido.
-A integracao no orchestrator e a issue #20 (Sprint 4) - hoje esse modulo
-so e exercitado isoladamente.
+Sprint 2 (issues #16/#17): interface de provider + integracao com Gemini,
+com triagem em lotes por categoria. Sprint 3 (#18/#19): prompts e relatorio
+Markdown persistido. Chamado pelo orchestrator depois do Codigo Web (#20).
 """
 
 import asyncio
 import logging
+from collections import defaultdict
 from datetime import UTC, datetime
 
 from sqlalchemy.orm import Session
@@ -29,6 +29,12 @@ __all__ = [
     "triage_findings",
 ]
 
+_UNAVAILABLE = TriageResult(
+    verdict=AIVerdict.NEEDS_REVIEW,
+    confidence=0.0,
+    reasoning="Triagem automatica indisponivel no momento.",
+)
+
 
 def get_triage_provider() -> AITriageProvider:
     if settings.ai_triage_provider != "gemini":
@@ -48,22 +54,38 @@ async def triage_findings(db: Session, scan_job: ScanJob) -> None:
         return
     provider = get_triage_provider()
 
-    for finding in pending:
+    for batch in _batches(pending):
         try:
-            result = await provider.triage(finding)
+            results = await provider.triage_batch(batch)
         except Exception:
-            # um finding que a IA nao conseguiu julgar nao pode derrubar o scan inteiro
+            # um lote que a IA nao conseguiu julgar nao pode derrubar o scan inteiro
             logger.exception(
-                "falha ao triar finding %s - marcando como needs_review", finding.id
+                "falha ao triar o lote %s - marcando como needs_review",
+                [f.id for f in batch],
             )
-            result = TriageResult(
-                verdict=AIVerdict.NEEDS_REVIEW,
-                confidence=0.0,
-                reasoning="Triagem automatica indisponivel no momento.",
-            )
-        _apply_result(finding, result)
+            results = {}
+        else:
+            if missing := [f.id for f in batch if f.id not in results]:
+                logger.warning(
+                    "a IA nao devolveu os findings %s - marcando como needs_review",
+                    missing,
+                )
+        for finding in batch:
+            _apply_result(finding, results.get(finding.id, _UNAVAILABLE))
 
     await asyncio.to_thread(db.commit)
+
+
+def _batches(findings: list[Finding]) -> list[list[Finding]]:
+    by_category = defaultdict(list)
+    for finding in findings:
+        by_category[finding.category].append(finding)
+    size = settings.ai_triage_batch_size
+    return [
+        group[start : start + size]
+        for group in by_category.values()
+        for start in range(0, len(group), size)
+    ]
 
 
 def _apply_result(finding: Finding, result: TriageResult) -> None:

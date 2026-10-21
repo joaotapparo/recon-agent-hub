@@ -34,7 +34,7 @@ def test_prompt_remove_corpo_pem_inclusive_quando_truncado(label, field, closed)
         raw_evidence={field: pem},
     )
 
-    prompt = build_triage_prompt(finding)
+    prompt = build_triage_prompt([finding])
 
     assert body not in prompt
     assert "<redacted>" in prompt
@@ -68,13 +68,13 @@ def test_valor_completo_tem_prioridade_sobre_prefixo_reconhecido():
         raw_evidence={"match": secret, "context": prefix},
     )
 
-    prompt = build_triage_prompt(finding)
+    prompt = build_triage_prompt([finding])
 
     assert prefix not in prompt
     assert tail not in prompt
-    assert "Ferramenta de origem: <redacted>" in prompt
-    assert "Titulo: Credencial <redacted>" in prompt
-    assert "Alvo: https://example.com/?credential=<redacted>" in prompt
+    assert '"source_tool": "<redacted>"' in prompt
+    assert '"title": "Credencial <redacted>"' in prompt
+    assert '"target": "https://example.com/?credential=<redacted>"' in prompt
 
 
 def test_mascara_lista_aninhada_sem_alterar_evidencia_original():

@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from collections import Counter
 
 import httpx
 from google import genai
@@ -23,12 +24,17 @@ _INITIAL_BACKOFF_SECONDS = 1.5
 
 
 class _GeminiTriageResponse(BaseModel):
+    finding_id: int
     verdict: AIVerdict
     severity: Severity | None = None
     confidence: float = Field(ge=0, le=1)
     reasoning: str
     reproduction_steps: str | None = None
     remediation: str | None = None
+
+
+class _GeminiTriageBatch(BaseModel):
+    results: list[_GeminiTriageResponse]
 
 
 class _GeminiReportResponse(BaseModel):
@@ -69,13 +75,20 @@ class GeminiTriageProvider:
             ),
         )
 
-    async def triage(self, finding: Finding) -> TriageResult:
-        response = await self._generate_content(build_triage_prompt(finding))
+    async def triage_batch(self, findings: list[Finding]) -> dict[int, TriageResult]:
+        response = await self._generate_content(build_triage_prompt(findings))
         if response.text is None:
             raise RuntimeError("Gemini devolveu resposta vazia na triagem")
 
-        parsed = _GeminiTriageResponse.model_validate_json(response.text)
-        return _normalize(parsed)
+        results = _GeminiTriageBatch.model_validate_json(response.text).results
+        counts = Counter(result.finding_id for result in results)
+        expected = {finding.id for finding in findings}
+        # id repetido ou que nao foi pedido nao da pra confiar - fica sem resultado e vai pra revisao
+        return {
+            result.finding_id: _normalize(result)
+            for result in results
+            if counts[result.finding_id] == 1 and result.finding_id in expected
+        }
 
     async def generate_report(
         self, domain: Domain, findings: list[Finding], *, language: str = "pt-BR"
@@ -98,7 +111,7 @@ class GeminiTriageProvider:
         return render_report(domain, findings, summary=summary, language=language)
 
     async def _generate_content(
-        self, prompt: str, *, response_schema: type[BaseModel] = _GeminiTriageResponse
+        self, prompt: str, *, response_schema: type[BaseModel] = _GeminiTriageBatch
     ) -> types.GenerateContentResponse:
         for attempt in range(1, _MAX_ATTEMPTS + 1):
             try:

@@ -51,9 +51,11 @@ _SYSTEM_PROMPT = (
     "Secrets chegam com o valor mascarado. Avalie o contexto da exposicao, sem "
     "tentar reconstruir ou usar a credencial. O formato sozinho nao prova que uma "
     "chave funciona, nem que um endpoint ou uma porta aberta seja uma falha.\n\n"
-    "Decida se o achado abaixo e um falso positivo (ruido comum: chave de exemplo, "
-    "placeholder, valor publico, endpoint benigno) ou um achado real que representa "
-    "risco. Depois:\n"
+    "Analise cada achado abaixo separadamente, sem deixar um influenciar o outro, e "
+    "decida se ele e um falso positivo (ruido comum: chave de exemplo, placeholder, "
+    "valor publico, endpoint benigno) ou um achado real que representa risco. "
+    "Para cada um:\n"
+    "- devolva exatamente um item em results, com o mesmo finding_id recebido;\n"
     "- use verdict=true_positive apenas quando a evidencia sustentar o risco;\n"
     "- use verdict=false_positive quando houver contexto que comprove ruido;\n"
     "- classifique a severidade de achados reais como info, low, medium, high ou "
@@ -127,24 +129,20 @@ def build_report_prompt(
     )
 
 
-def build_triage_prompt(finding: Finding) -> str:
-    redacted = redact_evidence(
-        {
-            "source_tool": finding.source_tool,
-            "title": finding.title,
-            "target": finding.target,
-            "raw_evidence": finding.raw_evidence,
-        }
-    )
-    evidence = json.dumps(redacted["raw_evidence"], ensure_ascii=False, indent=2)
-    return (
-        f"{_SYSTEM_PROMPT}\n"
-        f"Categoria: {finding.category.value}\n"
-        f"Ferramenta de origem: {redacted['source_tool']}\n"
-        f"Titulo: {redacted['title']}\n"
-        f"Alvo: {redacted['target']}\n"
-        f"Evidencia:\n{evidence}\n"
-    )
+def build_triage_prompt(findings: list[Finding]) -> str:
+    items = [
+        {"finding_id": finding.id, "category": finding.category.value}
+        | redact_evidence(
+            {
+                "source_tool": finding.source_tool,
+                "title": finding.title,
+                "target": finding.target,
+                "raw_evidence": finding.raw_evidence,
+            }
+        )
+        for finding in findings
+    ]
+    return f"{_SYSTEM_PROMPT}\nAchados:\n{json.dumps(items, ensure_ascii=False, indent=2)}\n"
 
 
 def redact_evidence(evidence: object) -> object:

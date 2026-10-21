@@ -92,10 +92,11 @@ def test_nao_repete_erro_de_requisicao(client):
 
 def test_provider_valida_json_e_encaminha_positivo_incompleto_para_revisao(client):
     client.aio.models.generate_content.return_value = SimpleNamespace(
-        text='{"verdict":"true_positive","confidence":0.9,"reasoning":"parece real"}'
+        text='{"results":[{"finding_id":1,"verdict":"true_positive","confidence":0.9,"reasoning":"parece real"}]}'
     )
     provider = gemini_provider.GeminiTriageProvider(api_key="fake-test-key")
     finding = Finding(
+        id=1,
         category=FindingCategory.EXPOSED_SECRET,
         source_tool="regex",
         title="Credencial",
@@ -103,7 +104,7 @@ def test_provider_valida_json_e_encaminha_positivo_incompleto_para_revisao(clien
         raw_evidence={"password": "abc123!"},
     )
 
-    result = asyncio.run(provider.triage(finding))
+    result = asyncio.run(provider.triage_batch([finding]))[1]
 
     assert result.verdict == AIVerdict.NEEDS_REVIEW
     assert result.severity is None
@@ -158,6 +159,7 @@ def test_gemini_rejeita_sintese_vazia(client, text):
 )
 def test_normalizacao_remove_conclusoes_de_achado_nao_confirmado(verdict):
     parsed = gemini_provider._GeminiTriageResponse(
+        finding_id=1,
         verdict=verdict,
         severity=Severity.CRITICAL,
         confidence=0.2,
@@ -171,3 +173,53 @@ def test_normalizacao_remove_conclusoes_de_achado_nao_confirmado(verdict):
     assert result.severity is None
     assert result.reproduction_steps is None
     assert result.remediation is None
+
+
+def _secret_finding(finding_id: int, secret: str) -> Finding:
+    return Finding(
+        id=finding_id,
+        category=FindingCategory.EXPOSED_SECRET,
+        source_tool="regex",
+        title="Credencial",
+        target="https://example.com/app.js",
+        raw_evidence={"password": secret},
+    )
+
+
+def test_lote_manda_cada_achado_com_id_e_mascarado(client):
+    client.aio.models.generate_content.return_value = SimpleNamespace(
+        text='{"results":[]}'
+    )
+    provider = gemini_provider.GeminiTriageProvider(api_key="fake-test-key")
+
+    asyncio.run(
+        provider.triage_batch([_secret_finding(7, "abc123!"), _secret_finding(9, "xyz789?")])
+    )
+
+    request = client.aio.models.generate_content.call_args.kwargs
+    assert request["config"].response_schema is gemini_provider._GeminiTriageBatch
+    assert '"finding_id": 7' in request["contents"]
+    assert '"finding_id": 9' in request["contents"]
+    assert "abc123!" not in request["contents"]
+    assert "xyz789?" not in request["contents"]
+
+
+def test_lote_descarta_id_repetido_ou_que_nao_foi_pedido(client):
+    item = '{{"finding_id":{},"verdict":"false_positive","confidence":0.8,"reasoning":"exemplo"}}'
+    client.aio.models.generate_content.return_value = SimpleNamespace(
+        text='{"results":[' + ",".join(item.format(i) for i in (1, 1, 2, 99)) + "]}"
+    )
+    provider = gemini_provider.GeminiTriageProvider(api_key="fake-test-key")
+
+    results = asyncio.run(
+        provider.triage_batch([_secret_finding(1, "abc123!"), _secret_finding(2, "xyz789?")])
+    )
+
+    assert list(results) == [2]
+    assert results[2].verdict == AIVerdict.FALSE_POSITIVE
+
+
+@pytest.mark.parametrize("size", [0, -1])
+def test_rejeita_lote_vazio(size):
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None, ai_triage_batch_size=size)

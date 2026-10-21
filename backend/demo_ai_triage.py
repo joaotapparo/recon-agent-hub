@@ -27,6 +27,7 @@ CASOS = [
     (
         "Placeholder oficial da AWS (deve virar falso positivo)",
         Finding(
+            id=1,
             category=FindingCategory.EXPOSED_SECRET,
             source_tool="gitleaks",
             title="Possivel chave AWS exposta em bundle JS",
@@ -40,6 +41,7 @@ CASOS = [
     (
         "Placeholder de documentacao (deve virar falso positivo)",
         Finding(
+            id=2,
             category=FindingCategory.EXPOSED_SECRET,
             source_tool="regex",
             title="Token de exemplo na documentacao",
@@ -53,6 +55,7 @@ CASOS = [
     (
         "Chave Stripe ficticia no front-end (cenario de risco)",
         Finding(
+            id=3,
             category=FindingCategory.EXPOSED_SECRET,
             source_tool="regex",
             title="Chave Stripe live exposta no front-end",
@@ -86,15 +89,22 @@ class _MockProvider:
             reasoning="Valor de exemplo/placeholder conhecido, sem risco real.",
         )
 
+    async def triage_batch(self, findings: list[Finding]) -> dict[int, TriageResult]:
+        return {finding.id: await self.triage(finding) for finding in findings}
+
 
 async def _rodar(provider, casos) -> None:
+    try:
+        resultados = await provider.triage_batch([finding for _, finding in casos])
+    except (APIError, httpx.HTTPError, TimeoutError, ValidationError, RuntimeError) as exc:
+        print(f"[indisponivel agora: {type(exc).__name__}] - tenta de novo ou rode com --mock")
+        return
+
     for descricao, finding in casos:
         print(f"\n>>> {descricao}")
-        try:
-            resultado = await provider.triage(finding)
-        except (APIError, httpx.HTTPError, TimeoutError, ValidationError, RuntimeError) as exc:
-            # Falhas da API ou respostas invalidas nao interrompem os demais casos da demo.
-            print(f"    [indisponivel agora: {type(exc).__name__}] - tenta de novo ou rode com --mock")
+        resultado = resultados.get(finding.id)
+        if resultado is None:
+            print("    [a IA nao devolveu esse achado no lote]")
             continue
 
         print(

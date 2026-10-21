@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     scans_dir: Path = DATA_DIR / "scans"
 
     ai_triage_provider: str = "gemini"
+    ai_triage_batch_size: int = Field(default=10, gt=0)
     gemini_api_key: str = ""
     gemini_model: str = "gemini-3.6-flash"
     gemini_temperature: float = 1.0
