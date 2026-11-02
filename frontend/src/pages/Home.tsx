@@ -30,16 +30,10 @@ export default function Home() {
 
         <div className="flex items-center gap-3">
           <button
-            onClick={() => navigate('/login')}
-            className="px-4 py-1.5 text-xs font-mono font-medium text-[#71717a] hover:text-[#d4d4d8] transition-colors cursor-pointer"
-          >
-            Entrar
-          </button>
-          <button
-            onClick={() => navigate('/login')}
+            onClick={() => navigate('/dashboard')}
             className="px-4 py-1.5 text-[11px] font-mono font-bold text-[#fafafa] bg-[#141416] hover:bg-[#1f1f23] hover:border-[#00e575]/40 border border-[#27272a] rounded-md transition-all cursor-pointer tracking-wider uppercase shadow-sm"
           >
-            CRIAR CONTA
+            ABRIR PAINEL
           </button>
         </div>
       </header>
@@ -78,7 +72,7 @@ export default function Home() {
             {/* Actions */}
             <div className="pt-2 space-y-4">
               <button
-                onClick={() => navigate('/login')}
+                onClick={() => navigate('/dashboard')}
                 className="group inline-flex items-center gap-3 px-7 py-3.5 bg-[#00e575] hover:bg-[#00f880] text-[#070709] font-mono font-bold text-xs tracking-wider uppercase rounded-lg transition-all shadow-[0_0_25px_rgba(0,229,117,0.35)] hover:shadow-[0_0_35px_rgba(0,229,117,0.55)] hover:scale-[1.02] cursor-pointer"
               >
                 ACESSAR PAINEL

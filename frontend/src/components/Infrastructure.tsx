@@ -1,19 +1,19 @@
 import { useState } from 'react';
-import { subdomains, openPorts, takeoverRisks } from '../mockData';
 import { SeverityBadge } from '../utils';
+import type { OpenPort, Subdomain, TakeoverRisk } from '../types';
 
 type Tab = 'subdomains' | 'ports' | 'takeover';
 
 interface InfrastructureProps {
-  subdomainsList?: typeof subdomains;
-  openPortsList?: typeof openPorts;
-  takeoverRisksList?: typeof takeoverRisks;
+  subdomainsList: Subdomain[];
+  openPortsList: OpenPort[];
+  takeoverRisksList: TakeoverRisk[];
 }
 
 export default function Infrastructure({
-  subdomainsList = subdomains,
-  openPortsList = openPorts,
-  takeoverRisksList = takeoverRisks,
+  subdomainsList,
+  openPortsList,
+  takeoverRisksList,
 }: InfrastructureProps) {
   const [tab, setTab] = useState<Tab>('subdomains');
 
@@ -48,6 +48,9 @@ export default function Infrastructure({
       </div>
 
       <div className="overflow-auto max-h-72">
+        {tabs.find((t) => t.id === tab)?.count === 0 && (
+          <p className="px-4 py-8 text-center text-muted font-mono text-[11px]">Nada encontrado.</p>
+        )}
         {tab === 'subdomains' && (
           <table className="w-full text-xs">
             <thead>

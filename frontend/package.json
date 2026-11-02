@@ -10,11 +10,11 @@
     "format": "oxfmt"
   },
   "dependencies": {
-    "jspdf": "^4.2.1",
-    "jspdf-autotable": "^5.0.8",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "react-router-dom": "^7.18.4"
+    "react-markdown": "10.1.0",
+    "react-router-dom": "^7.18.4",
+    "remark-gfm": "4.0.1"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.0.0",

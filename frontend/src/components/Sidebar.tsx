@@ -1,18 +1,18 @@
-﻿import { history as defaultHistory } from '../mockData';
-import type { AnalysisStatus, HistoryItem } from '../types';
+import type { HistoryItem } from '../types';
 
 interface Props {
   open: boolean;
-  activeId: string;
-  onSelect: (id: string) => void;
+  activeId: number | null;
+  onSelect: (id: number) => void;
   onNewScan?: () => void;
-  historyList?: HistoryItem[];
+  historyList: HistoryItem[];
 }
 
-function StatusDot({ status }: { status: AnalysisStatus }) {
+function StatusDot({ status }: { status: HistoryItem['status'] }) {
   const cls =
     status === 'completed' ? 'bg-ok' :
     status === 'running'   ? 'bg-accent animate-pulse' :
+    status === 'pending'   ? 'bg-border-2' :
     'bg-crit';
   return <span className={`inline-block w-1.5 h-1.5 rounded-full ${cls} shrink-0 mt-0.5`} />;
 }
@@ -22,7 +22,7 @@ export default function Sidebar({
   activeId,
   onSelect,
   onNewScan,
-  historyList = defaultHistory,
+  historyList,
 }: Props) {
   return (
     <aside
@@ -40,6 +40,9 @@ export default function Sidebar({
 
       <div className="flex-1 overflow-y-auto py-4">
         <p className="px-5 mb-3 text-[10px] font-mono font-medium text-muted tracking-widest uppercase">Histórico</p>
+        {historyList.length === 0 && (
+          <p className="px-5 text-[11px] text-muted">Nenhuma análise ainda.</p>
+        )}
         <ul className="space-y-0.5 px-2">
           {historyList.map((item) => (
             <li key={item.id}>
@@ -58,11 +61,6 @@ export default function Sidebar({
                       {item.domain}
                     </p>
                     <p className="text-[11px] text-muted mt-0.5">{item.date}</p>
-                    {item.findingsCount !== undefined && (
-                      <p className="text-[10px] text-subtle mt-0.5">
-                        {item.findingsCount} achado{item.findingsCount !== 1 ? 's' : ''}
-                      </p>
-                    )}
                     {item.status === 'running' && (
                       <p className="text-[10px] text-accent mt-0.5 animate-pulse">Escaneando...</p>
                     )}

@@ -1,7 +1,6 @@
 import { useState } from 'react';
-import { findings } from '../mockData';
-import { SeverityBadge, StatusBadge, typeLabel } from '../utils';
-import type { Finding, SeverityLevel, FindingStatus } from '../types';
+import { SeverityBadge, StatusBadge, getSeverity, typeLabel } from '../utils';
+import type { Finding } from '../types';
 
 function FindingPanel({ finding, onClose }: { finding: Finding; onClose: () => void }) {
   return (
@@ -61,8 +60,15 @@ function FindingPanel({ finding, onClose }: { finding: Finding; onClose: () => v
 
           <div className="rounded border border-accent/20 bg-accent/5 px-4 py-3">
             <p className="text-[10px] font-mono text-accent tracking-widest uppercase mb-1.5">Validação da IA</p>
-            <p className="text-xs text-subtle leading-relaxed">{finding.aiValidation}</p>
+            <p className="text-xs text-subtle leading-relaxed whitespace-pre-line">{finding.aiValidation}</p>
           </div>
+
+          {finding.remediation && (
+            <div>
+              <p className="text-[10px] font-mono text-muted tracking-widest uppercase mb-1.5">Correção recomendada</p>
+              <p className="text-xs text-subtle leading-relaxed whitespace-pre-line">{finding.remediation}</p>
+            </div>
+          )}
 
           {finding.reproSteps && finding.reproSteps.length > 0 && (
             <div>
@@ -105,18 +111,11 @@ function Select({
   );
 }
 
-const severityDot: Record<SeverityLevel, string> = {
-  critical: 'bg-crit',
-  high: 'bg-high',
-  medium: 'bg-med',
-  low: 'bg-low',
-};
-
 interface SecurityFindingsProps {
-  findingsList?: Finding[];
+  findingsList: Finding[];
 }
 
-export default function SecurityFindings({ findingsList = findings }: SecurityFindingsProps) {
+export default function SecurityFindings({ findingsList }: SecurityFindingsProps) {
   const [selected, setSelected] = useState<Finding | null>(null);
   const [filterSev, setFilterSev] = useState<string>('all');
   const [filterType, setFilterType] = useState<string>('all');
@@ -171,6 +170,8 @@ export default function SecurityFindings({ findingsList = findings }: SecurityFi
             { value: 'high', label: 'Alto' },
             { value: 'medium', label: 'Médio' },
             { value: 'low', label: 'Baixo' },
+            { value: 'info', label: 'Info' },
+            { value: 'unrated', label: 'Sem severidade' },
           ]}
         />
         <Select
@@ -182,6 +183,7 @@ export default function SecurityFindings({ findingsList = findings }: SecurityFi
             { value: 'endpoint', label: 'Endpoint' },
             { value: 'sensitive_file', label: 'Arquivos sensíveis' },
             { value: 'takeover', label: 'Takeover' },
+            { value: 'open_port', label: 'Porta aberta' },
           ]}
         />
         <Select
@@ -191,7 +193,8 @@ export default function SecurityFindings({ findingsList = findings }: SecurityFi
             { value: 'all', label: 'Status' },
             { value: 'confirmed', label: 'Confirmado' },
             { value: 'false_positive', label: 'Falso positivo' },
-            { value: 'analyzing', label: 'Em análise' },
+            { value: 'analyzing', label: 'Aguardando IA' },
+            { value: 'needs_review', label: 'Revisão manual' },
           ]}
         />
       </div>
@@ -206,6 +209,13 @@ export default function SecurityFindings({ findingsList = findings }: SecurityFi
             </tr>
           </thead>
           <tbody>
+            {filtered.length === 0 && (
+              <tr>
+                <td colSpan={7} className="px-4 py-8 text-center text-muted font-mono text-[11px]">
+                  {findingsList.length === 0 ? 'Nenhum achado até agora.' : 'Nenhum achado com esses filtros.'}
+                </td>
+              </tr>
+            )}
             {filtered.map((f) => (
               <tr
                 key={f.id}
@@ -214,7 +224,7 @@ export default function SecurityFindings({ findingsList = findings }: SecurityFi
               >
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-1.5">
-                    <span className={`w-1.5 h-1.5 rounded-full ${severityDot[f.severity]}`} />
+                    <span className={`w-1.5 h-1.5 rounded-full ${getSeverity(f.severity).dot}`} />
                     <SeverityBadge severity={f.severity} />
                   </div>
                 </td>

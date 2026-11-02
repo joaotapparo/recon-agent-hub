@@ -4,35 +4,36 @@ import type { FormEvent } from 'react';
 interface Props {
   isOpen: boolean;
   onClose: () => void;
-  onStartScan: (domain: string, options: ScanOptions) => void;
+  /** rejeita com a mensagem de erro da API (formato inválido, anti-SSRF...) */
+  onStartScan: (domain: string, authorized: boolean) => Promise<void>;
 }
 
-export interface ScanOptions {
-  subdomains: boolean;
-  ports: boolean;
-  takeover: boolean;
-  jsEndpoints: boolean;
-  secretsRegex: boolean;
-  sensitiveFiles: boolean;
-  aiTriage: boolean;
-}
+// O backend sempre executa o pipeline completo; a lista é informativa.
+const PIPELINE = [
+  { label: 'Subdomínios', desc: 'subfinder' },
+  { label: 'Hosts e portas', desc: 'httpx / nmap' },
+  { label: 'Subdomain Takeover', desc: 'dnspython / fingerprints' },
+  { label: 'JS e endpoints', desc: 'crawler + regex' },
+  { label: 'Secrets', desc: 'gitleaks + regex' },
+  { label: 'Arquivos sensíveis', desc: '.env, .git, config' },
+  { label: 'Triagem com IA', desc: 'Gemini: veredito e severidade' },
+];
 
 export default function NewScanModal({ isOpen, onClose, onStartScan }: Props) {
   const [domainInput, setDomainInput] = useState('');
   const [error, setError] = useState('');
-  const [options, setOptions] = useState<ScanOptions>({
-    subdomains: true,
-    ports: true,
-    takeover: true,
-    jsEndpoints: true,
-    secretsRegex: true,
-    sensitiveFiles: true,
-    aiTriage: true,
-  });
+  const [authorized, setAuthorized] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleClose = () => {
+    if (submitting) return;
+    setError('');
+    onClose();
+  };
+
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError('');
 
@@ -49,20 +50,29 @@ export default function NewScanModal({ isOpen, onClose, onStartScan }: Props) {
       return;
     }
 
-    onStartScan(clean, options);
-    setDomainInput('');
-    onClose();
-  };
+    if (!authorized) {
+      setError('Confirme que você tem autorização para testar este domínio.');
+      return;
+    }
 
-  const toggleOption = (key: keyof ScanOptions) => {
-    setOptions((prev) => ({ ...prev, [key]: !prev[key] }));
+    setSubmitting(true);
+    try {
+      await onStartScan(clean, authorized);
+      setDomainInput('');
+      setAuthorized(false);
+      onClose();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div
         className="fixed inset-0 bg-black/75 backdrop-blur-xs transition-opacity"
-        onClick={onClose}
+        onClick={handleClose}
       />
 
       <div className="relative w-full max-w-lg bg-surface border border-border-2 rounded-xl shadow-2xl z-50 overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200">
@@ -92,7 +102,7 @@ export default function NewScanModal({ isOpen, onClose, onStartScan }: Props) {
             </div>
           </div>
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="p-1.5 rounded-lg text-muted hover:text-foreground hover:bg-surface-3 transition-colors cursor-pointer"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -140,68 +150,53 @@ export default function NewScanModal({ isOpen, onClose, onStartScan }: Props) {
           </div>
 
           <div>
-            <label className="block text-xs font-mono font-medium text-subtle uppercase tracking-wider mb-2.5">
-              Módulos Ativos do Pipeline
-            </label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              {[
-                { key: 'subdomains', label: 'Subdomínios', desc: 'subfinder / amass' },
-                { key: 'ports', label: 'Portas Abertas', desc: 'nmap / httpx' },
-                { key: 'takeover', label: 'Subdomain Takeover', desc: 'dnspython / cname' },
-                { key: 'jsEndpoints', label: 'Extração de JS & APIs', desc: 'crawler + regex' },
-                { key: 'secretsRegex', label: 'Varredura de Secrets', desc: 'trufflehog / gitleaks' },
-                { key: 'sensitiveFiles', label: 'Arquivos Sensíveis', desc: '.env, .git, config' },
-                { key: 'aiTriage', label: 'Triagem com IA', desc: 'validação e severidade' },
-              ].map(({ key, label, desc }) => {
-                const isChecked = options[key as keyof ScanOptions];
-                return (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() => toggleOption(key as keyof ScanOptions)}
-                    className={`flex items-start gap-3 p-3 rounded-lg border text-left transition-all duration-150 cursor-pointer active:scale-[0.99] ${
-                      isChecked
-                        ? 'bg-zinc-900/90 border-zinc-600 text-white shadow-[0_0_12px_rgba(255,255,255,0.04)]'
-                        : 'bg-zinc-950/40 border-zinc-800/80 text-zinc-500 hover:border-zinc-700 hover:text-zinc-300'
-                    }`}
-                  >
-                    <div
-                      className={`w-4 h-4 rounded mt-0.5 flex items-center justify-center shrink-0 border transition-colors ${
-                        isChecked ? 'bg-white border-white text-black' : 'border-muted'
-                      }`}
-                    >
-                      {isChecked && (
-                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                          <polyline points="20 6 9 17 4 12" />
-                        </svg>
-                      )}
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-xs font-medium leading-tight">{label}</p>
-                      <p className="text-[10px] font-mono text-muted mt-0.5">{desc}</p>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
+            <p className="block text-xs font-mono font-medium text-subtle uppercase tracking-wider mb-2.5">
+              Etapas do pipeline
+            </p>
+            <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5">
+              {PIPELINE.map(({ label, desc }) => (
+                <li key={label} className="flex items-baseline gap-2 text-xs text-zinc-300">
+                  <span className="text-ok">✓</span>
+                  <span>{label}</span>
+                  <span className="text-[10px] font-mono text-muted truncate">{desc}</span>
+                </li>
+              ))}
+            </ul>
           </div>
+
+          <label className="flex items-start gap-3 p-3 rounded-lg border border-zinc-700 bg-zinc-900/60 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={authorized}
+              onChange={(e) => {
+                setAuthorized(e.target.checked);
+                if (error) setError('');
+              }}
+              className="mt-0.5 w-4 h-4 accent-white cursor-pointer"
+            />
+            <span className="text-xs text-zinc-200 leading-relaxed">
+              Confirmo que tenho <strong>autorização</strong> para testar este domínio. O scan só roda em alvos
+              autorizados e domínios que resolvem para IP privado são bloqueados.
+            </span>
+          </label>
 
           <div className="pt-4 border-t border-border flex items-center justify-end gap-3">
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleClose}
               className="px-4 py-2.5 rounded-lg border border-zinc-800 hover:border-zinc-700 bg-zinc-900/40 hover:bg-zinc-800/60 text-zinc-400 hover:text-zinc-200 font-mono text-xs uppercase tracking-wider transition-all duration-150 cursor-pointer active:scale-95"
             >
               Cancelar
             </button>
             <button
               type="submit"
-              className="group flex items-center gap-2.5 px-6 py-2.5 rounded-lg bg-gradient-to-b from-zinc-100 to-zinc-200 hover:from-white hover:to-zinc-100 text-zinc-950 font-mono font-bold text-xs uppercase tracking-wider shadow-[0_0_20px_rgba(255,255,255,0.15)] hover:shadow-[0_0_25px_rgba(255,255,255,0.3)] border border-white/40 active:scale-95 transition-all duration-150 cursor-pointer"
+              disabled={submitting || !authorized}
+              className="group flex items-center gap-2.5 px-6 py-2.5 rounded-lg bg-gradient-to-b from-zinc-100 to-zinc-200 hover:from-white hover:to-zinc-100 text-zinc-950 font-mono font-bold text-xs uppercase tracking-wider shadow-[0_0_20px_rgba(255,255,255,0.15)] hover:shadow-[0_0_25px_rgba(255,255,255,0.3)] border border-white/40 active:scale-95 transition-all duration-150 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" className="group-hover:translate-x-0.5 transition-transform">
                 <polygon points="5 3 19 12 5 21 5 3" />
               </svg>
-              <span>Iniciar Reconhecimento</span>
+              <span>{submitting ? 'Enviando…' : 'Iniciar Reconhecimento'}</span>
             </button>
           </div>
         </form>

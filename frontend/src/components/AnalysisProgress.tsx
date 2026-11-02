@@ -1,4 +1,3 @@
-import { analysisStages as defaultStages } from '../mockData';
 import type { AnalysisStage } from '../types';
 
 function StageRow({ stage }: { stage: AnalysisStage }) {
@@ -9,6 +8,8 @@ function StageRow({ stage }: { stage: AnalysisStage }) {
       </svg>
     ) : stage.status === 'running' ? (
       <span className="w-3 h-3 rounded-full border-2 border-accent border-t-transparent animate-spin block" />
+    ) : stage.status === 'failed' ? (
+      <span className="w-3 h-3 rounded-full bg-crit block" />
     ) : (
       <span className="w-3 h-3 rounded-full border border-border-2 block" />
     );
@@ -36,10 +37,10 @@ function StageRow({ stage }: { stage: AnalysisStage }) {
 }
 
 interface Props {
-  stages?: AnalysisStage[];
+  stages: AnalysisStage[];
 }
 
-export default function AnalysisProgress({ stages = defaultStages }: Props) {
+export default function AnalysisProgress({ stages }: Props) {
   const totalProgress = Math.round(
     stages.reduce((s, st) => s + st.progress, 0) / stages.length,
   );

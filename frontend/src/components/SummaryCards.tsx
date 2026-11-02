@@ -1,4 +1,4 @@
-import { summaryStats } from '../mockData';
+import type { ScanStats } from '../types';
 
 interface CardProps {
   label: string;
@@ -21,10 +21,10 @@ function Card({ label, value, sub, accent, small }: CardProps) {
 }
 
 interface SummaryCardsProps {
-  stats?: typeof summaryStats;
+  stats: ScanStats;
 }
 
-export default function SummaryCards({ stats = summaryStats }: SummaryCardsProps) {
+export default function SummaryCards({ stats }: SummaryCardsProps) {
   return (
     <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
       <div className="col-span-2 sm:col-span-2 lg:col-span-2">

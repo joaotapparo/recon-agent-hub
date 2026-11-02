@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import SummaryCards from './components/SummaryCards';
@@ -7,159 +7,115 @@ import SecurityFindings from './components/SecurityFindings';
 import Infrastructure from './components/Infrastructure';
 import CodeFindings from './components/CodeFindings';
 import FinalReport from './components/FinalReport';
-import NewScanModal, { type ScanOptions } from './components/NewScanModal';
-import {
-  history as initialHistory,
-  analysisStages as initialStages,
-  currentDomain as initialDomain,
-  scanDatasets,
-  type ScanDataset,
-} from './mockData';
-import type { HistoryItem, AnalysisStage, AnalysisStatus } from './types';
+import NewScanModal from './components/NewScanModal';
+import { api, isRunning, type ApiDomain } from './lib/api';
+import { toDataset, toHistoryItem } from './lib/adapters';
+import type { ScanDataset } from './types';
+
+const POLL_RUNNING_MS = 3000;
+const POLL_IDLE_MS = 15000;
 
 export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [historyList, setHistoryList] = useState<HistoryItem[]>(initialHistory);
-  const [activeHistoryId, setActiveHistoryId] = useState('h1');
-  const [currentDomain, setCurrentDomain] = useState(initialDomain);
-  const [analysisStatus, setAnalysisStatus] = useState<AnalysisStatus>('completed');
-  const [analysisDate, setAnalysisDate] = useState('03/09/2026 às 14:32');
-  const [stages, setStages] = useState<AnalysisStage[]>(initialStages);
-  const [activeDataset, setActiveDataset] = useState<ScanDataset>(scanDatasets.h1);
+  const [domains, setDomains] = useState<ApiDomain[] | null>(null);
+  const [domainsError, setDomainsError] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [dataset, setDataset] = useState<ScanDataset | null>(null);
+  const [datasetError, setDatasetError] = useState<string | null>(null);
   const [isNewScanOpen, setIsNewScanOpen] = useState(false);
+  const [rescanning, setRescanning] = useState(false);
 
-  const handleSelectHistory = (id: string) => {
-    setActiveHistoryId(id);
-    const selectedHistory = historyList.find((h) => h.id === id);
-    const dataset = scanDatasets[id];
+  const loadDomains = useCallback(async () => {
+    try {
+      const list = await api.listDomains();
+      setDomains(list);
+      setDomainsError(null);
+      // seleciona o mais recente na primeira carga
+      setSelectedId((current) => current ?? list[0]?.id ?? null);
+    } catch (e) {
+      setDomainsError((e as Error).message);
+    }
+  }, []);
 
-    if (dataset) {
-      setActiveDataset(dataset);
-      setCurrentDomain(dataset.domain);
-      setAnalysisDate(dataset.date);
-      setAnalysisStatus(dataset.status);
-      setStages(dataset.stages);
-    } else if (selectedHistory) {
-      setCurrentDomain(selectedHistory.domain);
-      setAnalysisDate(`${selectedHistory.date} às 10:00`);
-      setAnalysisStatus(selectedHistory.status);
+  // Lista de domínios (RF16): poll mais rápido enquanto algum scan roda.
+  const anyRunning = domains?.some((d) => isRunning(d.latest_scan_status)) ?? false;
+  useEffect(() => {
+    loadDomains();
+    const timer = setInterval(loadDomains, anyRunning ? POLL_RUNNING_MS : POLL_IDLE_MS);
+    return () => clearInterval(timer);
+  }, [loadDomains, anyRunning]);
+
+  const selected = domains?.find((d) => d.id === selectedId) ?? null;
+  const scanId = selected?.latest_scan_id ?? null;
+  const scanStatus = selected?.latest_scan_status ?? null;
+
+  // Detalhe do scan selecionado (RF14/RF15). Recarrega quando o status muda
+  // na lista e, enquanto roda, a cada POLL_RUNNING_MS.
+  useEffect(() => {
+    if (!selected || scanId == null) {
+      setDataset(null);
+      return;
+    }
+    let cancelled = false;
+    const domain = selected;
+
+    const load = async () => {
+      try {
+        const [scan, findings] = await Promise.all([api.getScan(scanId), api.getFindings(scanId)]);
+        if (cancelled) return;
+        setDataset(toDataset(domain, scan, findings));
+        setDatasetError(null);
+      } catch (e) {
+        if (!cancelled) setDatasetError((e as Error).message);
+      }
+    };
+
+    load();
+    const timer = isRunning(scanStatus) ? setInterval(load, POLL_RUNNING_MS) : undefined;
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+    // selected muda de referência a cada poll da lista; dependemos só do que importa
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scanId, scanStatus]);
+
+  const handleSelect = (id: number) => {
+    if (id === selectedId) return;
+    setDataset(null);
+    setDatasetError(null);
+    setSelectedId(id);
+  };
+
+  const handleStartScan = async (domain: string, authorized: boolean) => {
+    const res = await api.submitDomain(domain, authorized); // erros sobem para o modal
+    setDataset(null);
+    setSelectedId(res.domain_id);
+    await loadDomains();
+  };
+
+  const handleRescan = async () => {
+    if (!selected) return;
+    setRescanning(true);
+    try {
+      await api.rescan(selected.id);
+      await loadDomains();
+    } catch (e) {
+      setDatasetError((e as Error).message);
+    } finally {
+      setRescanning(false);
     }
   };
 
-  const handleStartScan = (domain: string, _options: ScanOptions) => {
-    const newId = 'scan_' + Date.now();
-    const today = new Date().toLocaleDateString('pt-BR');
-
-    const newHistoryItem: HistoryItem = {
-      id: newId,
-      domain: domain,
-      date: today,
-      status: 'running',
-    };
-
-    const freshStages: AnalysisStage[] = [
-      { name: 'Reconhecimento', status: 'running', progress: 20 },
-      { name: 'Infraestrutura', status: 'pending', progress: 0 },
-      { name: 'JavaScript', status: 'pending', progress: 0 },
-      { name: 'Validação com IA', status: 'pending', progress: 0 },
-      { name: 'Relatório', status: 'pending', progress: 0 },
-    ];
-
-    const freshDataset: ScanDataset = {
-      domain,
-      date: `${today} às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`,
-      status: 'running',
-      stats: {
-        subdomains: 12,
-        activeHosts: 8,
-        openPorts: 4,
-        findings: 3,
-        critical: 1,
-        high: 1,
-        medium: 1,
-        low: 0,
-      },
-      stages: freshStages,
-      findings: [
-        {
-          id: 'nf1',
-          severity: 'critical',
-          type: 'secret',
-          title: `Chave de API em ${domain}`,
-          target: `api.${domain}`,
-          file: '/static/bundle.js',
-          status: 'confirmed',
-          date: today,
-          aiValidation: 'Validação com IA em andamento.',
-          description: 'Identificada potencial chave de autenticação durante o reconhecimento.',
-        },
-      ],
-      subdomains: [
-        { host: `api.${domain}`, status: 'active', ip: '172.16.0.4', ports: [80, 443] },
-        { host: `admin.${domain}`, status: 'active', ip: '172.16.0.5', ports: [443] },
-      ],
-      openPorts: [
-        { host: domain, port: 443, protocol: 'TCP', service: 'HTTPS' },
-        { host: domain, port: 80, protocol: 'TCP', service: 'HTTP' },
-      ],
-      takeoverRisks: [],
-      endpoints: [
-        { method: 'GET', path: '/api/v1/auth', host: `api.${domain}`, file: 'auth.js', aiRelevant: true },
-      ],
-      secrets: [
-        { type: 'API Key', file: 'bundle.js', maskedValue: 'live_••••••••••••', aiResult: 'real' },
-      ],
-      sensitiveFiles: [
-        { filename: '.env.backup', host: domain, accessible: false, severity: 'high' },
-      ],
-    };
-
-    scanDatasets[newId] = freshDataset;
-    setHistoryList((prev) => [newHistoryItem, ...prev]);
-    setActiveHistoryId(newId);
-    setCurrentDomain(domain);
-    setAnalysisDate(freshDataset.date);
-    setAnalysisStatus('running');
-    setStages(freshStages);
-    setActiveDataset(freshDataset);
-
-    let step = 0;
-    const interval = setInterval(() => {
-      step++;
-      setStages((prev) => {
-        const next = [...prev];
-        if (step === 1) {
-          next[0] = { name: 'Reconhecimento', status: 'completed', progress: 100 };
-          next[1] = { name: 'Infraestrutura', status: 'running', progress: 50 };
-        } else if (step === 2) {
-          next[1] = { name: 'Infraestrutura', status: 'completed', progress: 100 };
-          next[2] = { name: 'JavaScript', status: 'running', progress: 65 };
-        } else if (step === 3) {
-          next[2] = { name: 'JavaScript', status: 'completed', progress: 100 };
-          next[3] = { name: 'Validação com IA', status: 'running', progress: 75 };
-        } else if (step === 4) {
-          next[3] = { name: 'Validação com IA', status: 'completed', progress: 100 };
-          next[4] = { name: 'Relatório', status: 'running', progress: 90 };
-        } else if (step >= 5) {
-          next[4] = { name: 'Relatório', status: 'completed', progress: 100 };
-          clearInterval(interval);
-          setAnalysisStatus('completed');
-          freshDataset.status = 'completed';
-          setHistoryList((hList) =>
-            hList.map((h) => (h.id === newId ? { ...h, status: 'completed', findingsCount: 3 } : h))
-          );
-        }
-        return next;
-      });
-    }, 1200);
-  };
+  const historyList = (domains ?? []).map(toHistoryItem);
+  const showDataset = dataset && dataset.domainId === selectedId ? dataset : null;
 
   return (
     <div className="flex h-screen w-full bg-bg text-foreground overflow-hidden">
       <Sidebar
         open={sidebarOpen}
-        activeId={activeHistoryId}
-        onSelect={handleSelectHistory}
+        activeId={selectedId}
+        onSelect={handleSelect}
         onNewScan={() => setIsNewScanOpen(true)}
         historyList={historyList}
       />
@@ -172,35 +128,59 @@ export default function App() {
           sidebarOpen={sidebarOpen}
           onToggleSidebar={() => setSidebarOpen((v) => !v)}
           onNewScan={() => setIsNewScanOpen(true)}
-          domain={currentDomain}
-          date={analysisDate}
-          status={analysisStatus}
+          onRescan={selected && !isRunning(scanStatus) ? handleRescan : undefined}
+          rescanning={rescanning}
+          domain={showDataset?.domain ?? selected?.name}
+          date={showDataset?.date}
+          status={showDataset?.status}
         />
 
         <main className="flex-1 overflow-y-auto">
           <div className="max-w-screen-xl mx-auto px-5 py-5 space-y-4">
-            <SummaryCards stats={activeDataset.stats} />
-            <AnalysisProgress stages={stages} />
-            <SecurityFindings findingsList={activeDataset.findings} />
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <Infrastructure
-                subdomainsList={activeDataset.subdomains}
-                openPortsList={activeDataset.openPorts}
-                takeoverRisksList={activeDataset.takeoverRisks}
-              />
-              <CodeFindings
-                endpointsList={activeDataset.endpoints}
-                secretsList={activeDataset.secrets}
-                sensitiveFilesList={activeDataset.sensitiveFiles}
-              />
-            </div>
-            <FinalReport
-                scanId={activeHistoryId}
-                domain={currentDomain}
-                date={analysisDate}
-                findingsList={activeDataset.findings}
-                dataset={activeDataset}
-              />
+            {domainsError && <Banner tone="error">{domainsError}</Banner>}
+            {datasetError && <Banner tone="error">{datasetError}</Banner>}
+            {showDataset?.errorMessage && (
+              <Banner tone="error">
+                <span className="font-semibold">O scan falhou:</span> {showDataset.errorMessage}
+              </Banner>
+            )}
+
+            {domains === null && !domainsError && <Placeholder>Carregando…</Placeholder>}
+
+            {domains?.length === 0 && (
+              <Placeholder>
+                <p className="mb-4">Nenhum domínio analisado ainda.</p>
+                <button
+                  onClick={() => setIsNewScanOpen(true)}
+                  className="px-4 py-2 rounded-lg bg-zinc-100 text-zinc-950 font-mono text-xs font-semibold uppercase tracking-wider cursor-pointer hover:bg-white"
+                >
+                  Iniciar primeira análise
+                </button>
+              </Placeholder>
+            )}
+
+            {selected && !showDataset && !datasetError && <Placeholder>Carregando análise…</Placeholder>}
+
+            {showDataset && (
+              <>
+                <SummaryCards stats={showDataset.stats} />
+                <AnalysisProgress stages={showDataset.stages} />
+                <SecurityFindings findingsList={showDataset.findings} />
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  <Infrastructure
+                    subdomainsList={showDataset.subdomains}
+                    openPortsList={showDataset.openPorts}
+                    takeoverRisksList={showDataset.takeoverRisks}
+                  />
+                  <CodeFindings
+                    endpointsList={showDataset.endpoints}
+                    secretsList={showDataset.secrets}
+                    sensitiveFilesList={showDataset.sensitiveFiles}
+                  />
+                </div>
+                <FinalReport dataset={showDataset} />
+              </>
+            )}
           </div>
         </main>
       </div>
@@ -210,6 +190,19 @@ export default function App() {
         onClose={() => setIsNewScanOpen(false)}
         onStartScan={handleStartScan}
       />
+    </div>
+  );
+}
+
+function Banner({ tone, children }: { tone: 'error'; children: React.ReactNode }) {
+  const cls = tone === 'error' ? 'text-crit bg-crit/10 border-crit/25' : '';
+  return <div className={`rounded-lg border px-4 py-3 text-xs font-mono ${cls}`}>{children}</div>;
+}
+
+function Placeholder({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="bg-surface border border-border rounded-lg px-6 py-16 text-center text-sm text-muted font-mono">
+      {children}
     </div>
   );
 }

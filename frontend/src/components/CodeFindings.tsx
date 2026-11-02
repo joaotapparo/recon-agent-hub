@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { endpoints, secrets, sensitiveFiles } from '../mockData';
-import { SeverityBadge, methodColor } from '../utils';
+import { SeverityBadge, StatusBadge } from '../utils';
+import type { Endpoint, Secret, SensitiveFile } from '../types';
 
 type Tab = 'endpoints' | 'secrets' | 'files';
 
@@ -9,18 +9,20 @@ const severityFileIcon: Record<string, string> = {
   high: 'text-high',
   medium: 'text-med',
   low: 'text-low',
+  info: 'text-subtle',
+  unrated: 'text-muted',
 };
 
 interface CodeFindingsProps {
-  endpointsList?: typeof endpoints;
-  secretsList?: typeof secrets;
-  sensitiveFilesList?: typeof sensitiveFiles;
+  endpointsList: Endpoint[];
+  secretsList: Secret[];
+  sensitiveFilesList: SensitiveFile[];
 }
 
 export default function CodeFindings({
-  endpointsList = endpoints,
-  secretsList = secrets,
-  sensitiveFilesList = sensitiveFiles,
+  endpointsList,
+  secretsList,
+  sensitiveFilesList,
 }: CodeFindingsProps) {
   const [tab, setTab] = useState<Tab>('endpoints');
 
@@ -55,11 +57,14 @@ export default function CodeFindings({
       </div>
 
       <div className="overflow-auto max-h-72">
+        {tabs.find((t) => t.id === tab)?.count === 0 && (
+          <p className="px-4 py-8 text-center text-muted font-mono text-[11px]">Nada encontrado.</p>
+        )}
         {tab === 'endpoints' && (
           <table className="w-full text-xs">
             <thead>
               <tr className="border-b border-border">
-                {['Método', 'Endpoint', 'Host', 'Arquivo', 'IA'].map((h) => (
+                {['Endpoint', 'Host', 'Arquivo', 'IA'].map((h) => (
                   <th key={h} className="text-left px-4 py-2 text-[10px] font-mono text-muted tracking-wider uppercase">{h}</th>
                 ))}
               </tr>
@@ -67,20 +72,11 @@ export default function CodeFindings({
             <tbody>
               {endpointsList.map((e, i) => (
                 <tr key={i} className="border-b border-border hover:bg-surface-2 transition-colors">
-                  <td className="px-4 py-2.5">
-                    <span className={`font-mono font-bold text-[10px] ${methodColor[e.method] ?? 'text-muted'}`}>
-                      {e.method}
-                    </span>
-                  </td>
                   <td className="px-4 py-2.5 font-mono text-foreground text-[11px]">{e.path}</td>
                   <td className="px-4 py-2.5 font-mono text-muted text-[10px]">{e.host}</td>
                   <td className="px-4 py-2.5 font-mono text-subtle text-[10px]">{e.file}</td>
                   <td className="px-4 py-2.5">
-                    {e.aiRelevant ? (
-                      <span className="text-[10px] font-mono text-ok bg-ok/10 border border-ok/20 px-1.5 py-0.5 rounded">relevante</span>
-                    ) : (
-                      <span className="text-[10px] font-mono text-muted">descartado</span>
-                    )}
+                    <StatusBadge status={e.status} />
                   </td>
                 </tr>
               ))}
@@ -104,15 +100,7 @@ export default function CodeFindings({
                   <td className="px-4 py-2.5 font-mono text-subtle text-[10px]">{s.file}</td>
                   <td className="px-4 py-2.5 font-mono text-accent text-[11px]">{s.maskedValue}</td>
                   <td className="px-4 py-2.5">
-                    <span
-                      className={`text-[10px] font-mono px-2 py-0.5 rounded border ${
-                        s.aiResult === 'real'
-                          ? 'text-ok bg-ok/10 border-ok/20'
-                          : 'text-muted bg-surface-2 border-border-2'
-                      }`}
-                    >
-                      {s.aiResult === 'real' ? 'Real' : 'Falso positivo'}
-                    </span>
+                    <StatusBadge status={s.status} />
                   </td>
                 </tr>
               ))}

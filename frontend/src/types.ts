@@ -1,11 +1,16 @@
-export type SeverityLevel = 'critical' | 'high' | 'medium' | 'low';
-export type FindingStatus = 'confirmed' | 'false_positive' | 'analyzing';
+// Tipos de apresentação usados pelos componentes. Os tipos crus da API
+// ficam em lib/api.ts; lib/adapters.ts converte de um para o outro.
+
+/** `unrated` = achado ainda sem severidade (pendente de triagem ou sem IA). */
+export type SeverityLevel = 'critical' | 'high' | 'medium' | 'low' | 'info' | 'unrated';
+export type FindingStatus = 'confirmed' | 'false_positive' | 'analyzing' | 'needs_review';
 export type AnalysisStatus = 'running' | 'completed' | 'error';
+export type FindingType = 'secret' | 'endpoint' | 'sensitive_file' | 'takeover' | 'open_port';
 
 export interface Finding {
   id: string;
   severity: SeverityLevel;
-  type: 'secret' | 'endpoint' | 'sensitive_file' | 'takeover';
+  type: FindingType;
   title: string;
   target: string;
   file?: string;
@@ -16,6 +21,7 @@ export interface Finding {
   description: string;
   evidence?: string;
   reproSteps?: string[];
+  remediation?: string;
 }
 
 export interface Subdomain {
@@ -40,18 +46,17 @@ export interface TakeoverRisk {
 }
 
 export interface Endpoint {
-  method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
   path: string;
   host: string;
   file: string;
-  aiRelevant: boolean;
+  status: FindingStatus;
 }
 
 export interface Secret {
   type: string;
   file: string;
   maskedValue: string;
-  aiResult: 'real' | 'false_positive';
+  status: FindingStatus;
 }
 
 export interface SensitiveFile {
@@ -62,15 +67,45 @@ export interface SensitiveFile {
 }
 
 export interface HistoryItem {
-  id: string;
+  /** id do domínio na API */
+  id: number;
+  scanId: number | null;
   domain: string;
   date: string;
-  status: AnalysisStatus;
-  findingsCount?: number;
+  status: AnalysisStatus | 'pending';
 }
 
 export interface AnalysisStage {
   name: string;
-  status: 'completed' | 'running' | 'pending';
+  status: 'completed' | 'running' | 'pending' | 'failed';
   progress: number;
+}
+
+export interface ScanStats {
+  subdomains: number;
+  activeHosts: number;
+  openPorts: number;
+  findings: number;
+  critical: number;
+  high: number;
+  medium: number;
+  low: number;
+}
+
+export interface ScanDataset {
+  scanId: number;
+  domainId: number;
+  domain: string;
+  date: string;
+  status: AnalysisStatus;
+  errorMessage: string | null;
+  stats: ScanStats;
+  stages: AnalysisStage[];
+  findings: Finding[];
+  subdomains: Subdomain[];
+  openPorts: OpenPort[];
+  takeoverRisks: TakeoverRisk[];
+  endpoints: Endpoint[];
+  secrets: Secret[];
+  sensitiveFiles: SensitiveFile[];
 }

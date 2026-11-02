@@ -38,7 +38,7 @@ class Settings(BaseSettings):
     sensitive_file_max_bytes: int = 64 * 1024
     max_concurrent_scans: int = 1
 
-    cors_origins: list[str] = ["http://localhost:3000"]
+    cors_origins: list[str] = ["http://localhost:3000", "http://localhost:5173"]
 
 
 settings = Settings()
