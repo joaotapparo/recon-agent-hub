@@ -1,0 +1,12 @@
+[
+  {"service": "github-pages", "cname_pattern": "github.io", "body_fingerprint": "There isn't a GitHub Pages site here."},
+  {"service": "heroku", "cname_pattern": "herokudns.com", "body_fingerprint": "There is no app configured at that hostname"},
+  {"service": "aws-s3", "cname_pattern": "s3.amazonaws.com", "body_fingerprint": "NoSuchBucket"},
+  {"service": "shopify", "cname_pattern": "myshopify.com", "body_fingerprint": "Sorry, this shop is currently unavailable"},
+  {"service": "unbounce", "cname_pattern": "unbouncepages.com", "body_fingerprint": "The requested URL was not found on this server"},
+  {"service": "fastly", "cname_pattern": "fastly.net", "body_fingerprint": "Fastly error: unknown domain"},
+  {"service": "azure", "cname_pattern": "azurewebsites.net", "body_fingerprint": "404 Web Site not found"},
+  {"service": "wordpress", "cname_pattern": "wordpress.com", "body_fingerprint": "Do you want to register"},
+  {"service": "zendesk", "cname_pattern": "zendesk.com", "body_fingerprint": "Help Center Closed"},
+  {"service": "cargo-collective", "cname_pattern": "cargocollective.com", "body_fingerprint": "404 Not Found"}
+]

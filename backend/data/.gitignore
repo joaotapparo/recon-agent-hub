@@ -1,3 +1,4 @@
 *
 !.gitignore
 !scans/.gitkeep
+!takeover_fingerprints.json

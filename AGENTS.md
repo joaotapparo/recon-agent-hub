@@ -1,0 +1,313 @@
+# recon-agent-hub — guia para quem (ou qual IA) for implementar os próximos módulos
+
+Este arquivo existe pra qualquer pessoa (ou agente de IA) que for continuar o
+projeto sem ter acompanhado o histórico de decisões. Leia isto antes de
+escrever código.
+
+Escopo completo do projeto: `../Docs/ESCOPO PROJETO 2.pdf` (fora deste repo).
+Requisitos funcionais RF01-RF17 vêm de lá. **O roadmap
+técnico detalhado vive nas [Issues do GitHub](https://github.com/joaotapparo/recon-agent-hub/issues)**,
+organizadas em fases (`fase-0-scaffolding` até `fase-5-hardening`) — este
+arquivo é um resumo do estado atual, as issues são a fonte de verdade pra
+granularidade fina (nome exato de arquivo, assinatura de função).
+
+## Contexto do produto
+
+Plataforma de recon e triagem de segurança para bug bounty: o usuário
+informa um domínio, o sistema enumera subdomínios/portas/riscos de
+takeover, baixa JS em busca de secrets/endpoints expostos, manda os
+candidatos pra um agente de IA validar (falso positivo x real + severidade)
+e gera um relatório final num painel.
+
+⚠️ **Restrição de segurança que atravessa o projeto todo**: só se pode
+escanear domínios com `Domain.authorized = True`, e a submissão passa por
+uma validação anti-SSRF (`app/core/ssrf_guard.py`) que bloqueia domínios
+que resolvem pra IP privado/loopback/link-local. Qualquer código novo que
+toque em recon, scraping ou triagem deve respeitar isso.
+
+## Arquitetura e convenções já estabelecidas
+
+- **Backend**: Python 3.11+, FastAPI, SQLAlchemy 2.0 (estilo tipado
+  `Mapped`/`mapped_column`, ver `app/models/`), Alembic para migração,
+  gerenciador de pacotes **`uv`** (não pip/poetry) — `cd backend && uv sync`.
+- **Tudo assíncrono**: wrappers de ferramenta externa, orquestração e fila
+  de jobs usam `async`/`await` (`asyncio.create_subprocess_exec`, não
+  `subprocess.run` bloqueante) — necessário porque a fila de jobs
+  (`app/workers/job_runner.py`) roda dentro do mesmo event loop do FastAPI.
+  **Não introduza chamada bloqueante síncrona de I/O dentro de uma
+  `async def`** (isso trava o event loop inteiro, ninguém mais consegue
+  usar a API enquanto um scan roda) — se precisar, use
+  `asyncio.to_thread(...)`.
+- **Banco**: SQLite (`backend/data/recon.db`). `backend/data/` tem
+  `.gitignore` que ignora tudo por padrão, com exceções explícitas
+  (`!scans/.gitkeep`, `!takeover_fingerprints.json`) — se adicionar um novo
+  arquivo estático que precisa ir pro git, adicione a exceção no
+  `.gitignore` também, ou ele não vai ser commitado silenciosamente.
+- **Sem Celery/Redis.** Fila de jobs in-process com `asyncio.Queue` +
+  `asyncio.Semaphore(settings.max_concurrent_scans)`, consumida por uma
+  task iniciada no `lifespan` do FastAPI (ver `app/workers/job_runner.py`
+  e `app/main.py`). `settings.max_concurrent_scans` (default 1) limita
+  quantos scans rodam ao mesmo tempo.
+- **IA**: Google Gemini (`google-genai`), não Anthropic/OpenAI — chave em
+  `settings.gemini_api_key` / `settings.gemini_model` (`app/config.py`).
+- **Frontend**: Vite + React 19 + Tailwind 4 + `react-router-dom` +
+  `react-markdown` (renderiza o relatório do backend). SPA, sem SSR e sem
+  login. Gerenciador de pacotes **pnpm** (versão em `frontend/.mise.toml`).
+  Em dev, o Vite faz proxy de `/api` pro backend (`VITE_PROXY_TARGET`,
+  padrão `http://localhost:8000`).
+- **Caminhos absolutos no `.env` do servidor**: `SUBFINDER_PATH`,
+  `HTTPX_PATH` e `GITLEAKS_PATH` devem apontar pro binário (ex.:
+  `/home/ubuntu/go/bin/subfinder`). Um processo iniciado via SSH não-interativo
+  não tem `~/go/bin` no `PATH`, e o scan falha em `enumerating`.
+- **Ferramentas externas** (precisam estar no PATH, caminho configurável em
+  `app/config.py`): `subfinder`, `httpx` (ProjectDiscovery), `nmap`,
+  `gitleaks`.
+- **Padrão de wrapper de ferramenta externa**: todo wrapper em
+  `app/tool_wrappers/` usa o helper assíncrono `app/core/subprocess_runner.py`
+  (`await run_tool(cmd, scan_job_id=..., tool=..., input=None, timeout=...)`),
+  que levanta `ToolError` se a ferramenta falhar (binário ausente, timeout,
+  código de saída != 0) e salva o stdout bruto em
+  `data/scans/{scan_job_id}/{tool}.json` (auditoria/debug).
+  **Não engula essas exceções silenciosamente** — deixe subir até o
+  orchestrator (`app/services/orchestrator.py`), que marca a `ScanJob` como
+  `FAILED` com `error_message` preenchido. Se uma falha for esperada
+  por-host (não por-domínio inteiro), trate localmente como o
+  `_scan_ports` de `app/services/orchestrator.py` faz com o nmap.
+- **Logging**: usar `logging.getLogger(__name__)`, não `print`. Falhas que
+  não devem abortar o pipeline (ex.: erro de DNS num host isolado) devem
+  pelo menos gerar `logger.warning(...)`, nunca ser silenciadas sem rastro.
+
+## Estado atual — o que já está pronto
+
+| Peça | Arquivo(s) | Status |
+|---|---|---|
+| Modelos do banco (Domain, ScanJob, Subdomain, Finding, Report) | `app/models/` | ✅ pronto |
+| Config, database, app FastAPI base | `app/config.py`, `app/database.py`, `app/main.py` | ✅ pronto |
+| Migração inicial | `backend/alembic/versions/` | ✅ pronto |
+| Executor de subprocesso assíncrono (issue #5) | `app/core/subprocess_runner.py` | ✅ pronto |
+| Validação de formato + anti-SSRF (issue #9) | `app/core/domain_validation.py`, `app/core/ssrf_guard.py` | ✅ pronto — hardening extra (redirect/DNS rebinding) é a issue #26, ainda não feita |
+| **Módulo Infraestrutura** (RF02, RF03, RF04 — issues #2, #3, #4, #8) | `app/tool_wrappers/subfinder.py`, `httpx_cli.py`, `nmap.py`, `app/services/recon/takeover_check.py` | ✅ implementado, revisado e **testado em execução real** |
+| Fila de jobs + recuperação de órfãos (issues #6, #27) | `app/workers/job_runner.py` | ✅ pronto |
+| Orquestração do pipeline (issues #7, #20) | `app/services/orchestrator.py` | ✅ pronto — recon → scanning_js → triaging → report (triagem IA pulada com aviso se GEMINI_API_KEY ausente) |
+| Endpoints de domínio/scan (RF01, RF15, RF16 — issues #9, #10) | `app/routers/domains.py`, `app/routers/scans.py`, `app/schemas/domain.py`, `app/schemas/scan.py` | ✅ pronto |
+| **Módulo Código Web** (RF05-RF09 — issues #11-#15, #31) | `app/services/js_scanner/{discovery,downloader,endpoint_extractor,secret_scanner,sensitive_files}.py` | ✅ implementado e integrado ao pipeline; testado com unit + integração (mock de rede) |
+| **Módulo Agente de IA** (RF10-RF13 — issues #16-#19, #32) | `app/services/ai_triage/` | ✅ triagem em lotes (#17), prompts e relatório Markdown/PDF (#32); integrado no pipeline (#20); endpoints (#21) feitos; avaliação RF17 (#29) ainda não implementada |
+| Painel/frontend (issues #22-#25) | `frontend/src/` (`lib/api.ts`, `lib/adapters.ts`, `App.tsx`) | ✅ conectado à API real; testado com scan real |
+| `docker-compose` opcional (issue #30) | — | 🔲 não implementado, fase-5, não bloqueante |
+
+> **Branch de trabalho atual**: `dev-local`, com a infraestrutura e a base
+> de IA. Confira a branch e o estado local antes de continuar; a implementação
+> isolada do módulo não significa que ele já esteja integrado ao pipeline.
+
+> **Testado em execução real em 06/10** (`scanme.nmap.org`, domínio de
+> teste público mantido pelo próprio projeto nmap) — scan completo,
+> `enumerating → probing → port_scanning → checking_takeover → completed`,
+> sem erro. Confirmado: campos do JSON do `httpx` (`input`, `host`, `a`,
+> `status_code`, `title`, `tech`, `body`) batem com o que o código espera;
+> a flag `-include-response` funciona e o campo do corpo HTTP se chama
+> `body` (não `response`); `nmap -sT` identificou as portas 22 e 80
+> corretamente.
+>
+> ⚠️ **Armadilha real encontrada e corrigida**: o pacote Python `httpx`
+> (dependência transitiva do `google-genai`) instala um script de linha de
+> comando também chamado `httpx` dentro do `.venv` do `uv`, que tem
+> prioridade no `PATH` sobre o binário de verdade da ProjectDiscovery.
+> Sintoma: scan falha em `probing` com `httpx terminou com codigo 1` e uma
+> mensagem pedindo `pip install httpx[cli]`. **Sempre configure
+> `HTTPX_PATH` no `.env` com o caminho absoluto** do binário real (`which
+> httpx` antes de ativar o ambiente do `uv`) — ver `.env.example` e
+> `README.md`.
+
+### Como rodar
+
+```bash
+cd backend
+uv sync
+cp .env.example .env   # preencher GEMINI_API_KEY quando for usar o módulo de IA
+uv run alembic upgrade head
+uv run uvicorn app.main:app --reload
+```
+
+```bash
+curl -X POST http://localhost:8000/api/domains \
+  -H "Content-Type: application/json" \
+  -d '{"name": "dominio-de-teste-autorizado.com", "authorization_confirmed": true}'
+# -> {"domain_id": 1, "scan_job_id": 1}
+
+curl http://localhost:8000/api/scans/1        # status do scan
+curl http://localhost:8000/api/domains        # lista de domínios + status do último scan
+curl http://localhost:8000/api/domains/1      # detalhe de um domínio
+curl -X POST http://localhost:8000/api/domains/1/rescan   # re-escanear domínio já autorizado
+```
+
+## O que falta implementar
+
+### Módulo Código Web — `app/services/js_scanner/`
+
+Requisitos: RF05, RF06, RF07, RF08, RF09. Issues #11-#15 (quebram isso em
+`discovery.py`, `downloader.py`, `secret_scanner.py`,
+`endpoint_extractor.py` + endpoint `GET /api/scans/{id}/findings`).
+
+Contrato de integração esperado pelo `app/services/orchestrator.py`
+(ainda não chamado de lá — a integração é trabalho futuro, mesmo padrão
+da issue #20 pro `ai_triage`):
+
+```python
+async def scan_hosts(db: Session, scan_job: ScanJob, live_hosts: list[str]) -> None
+```
+
+Deve, para cada host em `live_hosts`:
+
+1. Baixar os arquivos JS das páginas ativas (RF05) — `requests` +
+   `BeautifulSoup` (já nas dependências do projeto).
+2. Extrair endpoints/rotas ocultas via regex nos arquivos JS (RF06) —
+   inspirar em LinkFinder.
+3. Extrair candidatos a secrets via regex/gitleaks (RF07) —
+   `settings.gitleaks_path` já está configurado.
+4. Checar arquivos sensíveis conhecidos (`.env`, `config.json`,
+   `.git/config`, etc.) contra uma lista tipo SecLists (RF08).
+5. Persistir tudo como `Finding` (import de `app.models`), vinculado a
+   `scan_job.id` / `scan_job.domain_id` / `subdomain_id` do
+   `Subdomain` correspondente (já existe, criado pelo módulo
+   Infraestrutura):
+   - secret/endpoint → `category=FindingCategory.EXPOSED_SECRET` ou
+     `EXPOSED_ENDPOINT`, `ai_verdict=AIVerdict.PENDING` (a IA valida depois).
+   - arquivo sensível exposto → achado crítico direto (RF09):
+     `category=FindingCategory.MISCONFIGURATION`,
+     `ai_verdict=AIVerdict.TRUE_POSITIVE`, `ai_severity=Severity.CRITICAL`,
+     **sem** esperar o módulo de IA.
+
+Padrão a seguir pros novos wrappers (ex.: gitleaks): mesmo esquema
+assíncrono de `app/core/subprocess_runner.py` usado pelo módulo de
+Infraestrutura — não reinventar tratamento de erro nem virar síncrono.
+
+### Módulo Agente de IA — `app/services/ai_triage/`
+
+Triagem em lotes, prompts e relatório Markdown/PDF estão implementados, e o
+módulo já roda no orchestrator depois do Código Web (#20).
+A triagem agrupa os achados pendentes por categoria, até
+`settings.ai_triage_batch_size` (padrão 10) por chamada (#17). Cada resultado
+volta com `finding_id`; achado ausente, repetido ou de um lote que falhou vira
+`NEEDS_REVIEW`, sem derrubar os outros lotes. O tamanho do lote e o timeout de
+60 segundos ainda não foram calibrados com o Gemini real triando em lote.
+Os testes atuais verificam contratos e persistência com IA simulada, não a
+taxa de acerto do Gemini real (RF17, issue #29, ainda não implementada).
+Em 06/10/2026, `demo_ai_report.py --real` confirmou três triagens reais com
+`gemini-3.6-flash`. As primeiras rodadas tiveram 503/timeouts e fallback
+persistido. Depois do ajuste de temperatura para `1.0`, as triagens concluíram,
+mas a síntese esgotou o timeout de 30 segundos. Um teste só da síntese, com
+`GEMINI_TIMEOUT_SECONDS=60` temporário, concluiu na segunda tentativa e confirmou
+o relatório do Gemini persistido e relido. Depois desse teste, o usuário aprovou
+60 segundos como timeout padrão. O smoke valida o fluxo nesse cenário, não
+disponibilidade nem RF17;
+a triagem Stripe ainda afirmou acesso total sem prova de validade/permissões,
+um ponto para revisar na avaliação da issue #29. O script padrão é offline e
+usa um banco separado em `backend/data/demos/`, sem executar scan.
+
+Requisitos: RF10, RF11, RF12, RF13, RF17. Issues #16-#21 (`base.py` com a
+interface `AITriageProvider`, `gemini_provider.py`, `prompt_templates.py`,
+`report_builder.py`, integração no orchestrator, endpoint
+`GET /api/scans/{id}/report`).
+
+Contrato de integração esperado:
+
+```python
+async def triage_findings(db: Session, scan_job: ScanJob) -> None
+async def generate_report(db: Session, scan_job: ScanJob, *, language: str = "pt-BR") -> Report
+```
+
+`triage_findings` mantém seu contrato. A interface `AITriageProvider` tem
+`triage_batch(findings) -> dict[int, TriageResult]`, com `finding.id` como chave,
+e `generate_report(domain, findings, language=...) -> str`, retornando Markdown. Só `pt-BR` é aceito por enquanto.
+Providers devem usar `render_report` para manter a estrutura e o mascaramento
+antes de retornar o Markdown; a persistência não altera o texto já renderizado.
+Reutilize essa fronteira ao adicionar idiomas; não assuma a língua do navegador
+nem crie outro provider para tradução. Não compartilhe a sessão entre chamadas
+concorrentes; o acesso síncrono ao banco é enviado para `asyncio.to_thread`.
+
+O relatório preserva os dados triados; Gemini escreve apenas a síntese.
+Pendentes, inconclusivos e positivos sem severidade ficam em revisão; falsos
+positivos entram só na contagem. Falha da síntese gera um relatório básico
+com aviso e `ai_model_used="none"`, sem perder achados. Regenerar atualiza a
+linha existente para o scan. Nenhuma alteração de esquema foi necessária.
+`report_pdf.py` gera o PDF na hora a partir de `markdown_content`, com
+`xhtml2pdf` + Jinja2 e uma `ResourceAccessPolicy` fechada: a renderização não
+busca URL nem lê arquivo local. Não troque por WeasyPrint: ele exige libs de
+sistema (pango) e complica o setup no Windows, que é o sistema da maior parte do time.
+
+Chamado pelo orchestrator (#20) depois do módulo Código Web. Deve,
+para cada `Finding` de `scan_job` com `ai_verdict == AIVerdict.PENDING`:
+
+1. Classificar como falso positivo ou achado real usando `raw_evidence`
+   como contexto, via Gemini (RF10, RF11).
+2. Preencher `ai_verdict` (`TRUE_POSITIVE` / `FALSE_POSITIVE` /
+   `NEEDS_REVIEW`).
+3. Estimar `ai_severity` pros achados confirmados como reais (RF12).
+4. Preencher `ai_reasoning`, `ai_reproduction_steps` e `ai_remediation`.
+5. Gerar o relatório final (RF13) e persistir como `Report`, vinculado a
+   `scan_job.id`/`scan_job.domain_id` (campos: `summary`,
+   `markdown_content`, `ai_model_used`). O frontend já tem
+   `react-markdown` instalado pra renderizar.
+6. Manter um conjunto de casos de teste conhecidos pra medir a taxa de
+   acerto da validação (RF17) — pode virar testes em `backend/tests/`.
+
+### Painel — `frontend/` (issues #22-#25)
+
+Requisitos: RF01 (via API), RF14, RF15, RF16 (via API).
+
+API já disponível:
+- `POST /api/domains` — body `{"name": str, "authorization_confirmed": bool}`.
+  Retorna `{"domain_id": int, "scan_job_id": int}`. Bloqueia (400) se
+  `authorization_confirmed` não vier `true`, ou se o domínio resolver pra
+  IP privado (anti-SSRF) — reflita a confirmação explícita na UI.
+- `GET /api/scans/{id}/findings` — lista achados do scan, filtros `category`/`severity`/`verdict` (RF14).
+- `GET /api/scans/{id}/report` — relatório gerado (JSON); `GET /api/scans/{id}/report.md` baixa o Markdown e `GET /api/scans/{id}/report.pdf` baixa o PDF (RF13).
+- `GET /api/scans/{id}` — status atual (`ScanStatus`: `pending`,
+  `enumerating`, `probing`, `port_scanning`, `checking_takeover`,
+  `scanning_js`, `triaging`, `completed`, `failed`) + `subdomains` +
+  `findings` quando disponíveis.
+- `GET /api/domains` — lista de domínios com id e status do último scan
+  (`latest_scan_id`, `latest_scan_status`) — RF16.
+- `GET /api/domains/{id}` — detalhe de um domínio.
+- `POST /api/domains/{id}/rescan` — dispara novo scan pra domínio já
+  autorizado.
+
+Implementado (issues #22-#25):
+- `src/lib/api.ts` — client tipado (tipos espelham `app/schemas/`).
+- `src/lib/adapters.ts` — converte a resposta da API pros tipos de
+  `src/types.ts` que os componentes usam. Mudou o schema? Ajuste os dois.
+- `NewScanModal` — submissão com checkbox de autorização obrigatório; erros
+  da API (formato, anti-SSRF) aparecem no próprio modal.
+- `App.tsx` — histórico de domínios na sidebar + detalhe do último scan,
+  com polling de 3s enquanto o scan roda (RF15) e botão de reanálise.
+- `FinalReport`/`ReportModal` — relatório Markdown do backend, downloads
+  `.md` e `.pdf`; botões só habilitam com o scan `completed`.
+
+Produção: `cd frontend && pnpm build` gera `frontend/dist`, e o próprio
+FastAPI serve o painel na mesma porta da API (`app/frontend.py`, rota
+catch-all registrada por último em `app/main.py`). Sem `dist`, só a API sobe.
+
+Pendente: histórico de scans anteriores de um mesmo domínio (a API ainda não
+lista scans por domínio; só o último fica acessível pela UI).
+
+## Tabela de rastreabilidade RF → código
+
+| RF | Descrição | Onde está / vai estar |
+|---|---|---|
+| RF01 | Usuário informa domínio | `app/routers/domains.py::submit_domain` ✅ |
+| RF02 | Enumerar subdomínios | `app/tool_wrappers/subfinder.py` ✅ |
+| RF03 | Portas abertas / hosts ativos | `app/tool_wrappers/nmap.py`, `httpx_cli.py` ✅ |
+| RF04 | Risco de subdomain takeover | `app/services/recon/takeover_check.py` ✅ |
+| RF05 | Baixar JS das páginas | `js_scanner/discovery.py`, `downloader.py` ✅ |
+| RF06 | Extrair endpoints do JS | `js_scanner/endpoint_extractor.py` ✅ |
+| RF07 | Candidatos a secrets | `js_scanner/secret_scanner.py` (gitleaks + fallback regex) ✅ |
+| RF08 | Arquivos sensíveis expostos | `js_scanner/sensitive_files.py` ✅ |
+| RF09 | Arquivo sensível = achado crítico direto | `js_scanner/sensitive_files.py` + `__init__.py` ✅ |
+| RF10 | Enviar candidatos pra IA | `app/services/ai_triage/` ✅ integrado (#20) |
+| RF11 | IA classifica falso positivo x real | `app/services/ai_triage/` ✅ módulo isolado; validação real pendente |
+| RF12 | IA estima severidade | `app/services/ai_triage/` ✅ módulo isolado; validação real pendente |
+| RF13 | Gerar relatório técnico | `report_builder.py` + `report_pdf.py` + `routers/reports.py` ✅ (Markdown e PDF) |
+| RF14 | Painel mostra tudo | `frontend/src/` ✅ |
+| RF15 | Acompanhamento de status | `app/routers/scans.py` ✅ (API) / `frontend/src/App.tsx` ✅ (UI, polling) |
+| RF16 | Histórico no banco | `app/routers/domains.py::list_domains` ✅ |
+| RF17 | Casos de teste da IA | `backend/tests/` 🔲 |
