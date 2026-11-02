@@ -11,8 +11,8 @@ logger = logging.getLogger(__name__)
 
 async def run_subfinder(domain: str, scan_job_id: int) -> list[str]:
     """
-    Enumera subdominios ativos do dominio informado. Retorna [domain] se a
-    ferramenta rodar com sucesso mas nao achar nenhum subdominio.
+    Enumera subdominios do dominio informado. O proprio dominio sempre vem
+    primeiro na lista, seguido dos subdominios encontrados (sem duplicatas).
     """
     stdout = await run_tool(
         [settings.subfinder_path, "-d", domain, "-json"],
@@ -36,6 +36,8 @@ async def run_subfinder(domain: str, scan_job_id: int) -> list[str]:
 
     if not hosts:
         logger.info("subfinder nao encontrou subdominios para %s; usando so o dominio raiz", domain)
-        return [domain]
 
-    return hosts
+    # O dominio informado sempre entra (primeiro): o subfinder lista so
+    # subdominios, e sem isso o alvo principal nao seria sondado quando
+    # houvesse qualquer subdominio. dict.fromkeys deduplica mantendo a ordem.
+    return list(dict.fromkeys([domain, *hosts]))
