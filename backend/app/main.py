@@ -9,6 +9,7 @@ from app import (
     models,  # noqa: F401 - garante que os models sao registrados no Base.metadata
 )
 from app.config import settings
+from app.frontend import mount_frontend
 from app.routers import domains, findings, reports, scans
 from app.workers.job_runner import recover_orphaned_jobs, start_worker
 
@@ -54,3 +55,8 @@ def test_harness() -> str:
     validar a API sem precisar de curl.
     """
     return (STATIC_DIR / "test_harness.html").read_text()
+
+
+# Precisa vir por ultimo: registra a rota catch-all que serve o painel
+# (frontend/dist) quando o build existe.
+mount_frontend(app)

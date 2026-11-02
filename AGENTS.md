@@ -283,6 +283,10 @@ Implementado (issues #22-#25):
 - `FinalReport`/`ReportModal` — relatório Markdown do backend, downloads
   `.md` e `.pdf`; botões só habilitam com o scan `completed`.
 
+Produção: `cd frontend && pnpm build` gera `frontend/dist`, e o próprio
+FastAPI serve o painel na mesma porta da API (`app/frontend.py`, rota
+catch-all registrada por último em `app/main.py`). Sem `dist`, só a API sobe.
+
 Pendente: histórico de scans anteriores de um mesmo domínio (a API ainda não
 lista scans por domínio; só o último fica acessível pela UI).
 
