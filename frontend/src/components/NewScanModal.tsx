@@ -155,10 +155,12 @@ export default function NewScanModal({ isOpen, onClose, onStartScan }: Props) {
             </p>
             <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5">
               {PIPELINE.map(({ label, desc }) => (
-                <li key={label} className="flex items-baseline gap-2 text-xs text-zinc-300">
-                  <span className="text-ok">✓</span>
-                  <span>{label}</span>
-                  <span className="text-[10px] font-mono text-muted truncate">{desc}</span>
+                <li key={label} className="flex items-baseline gap-2 text-xs text-zinc-300 min-w-0">
+                  <span className="text-ok shrink-0">✓</span>
+                  <span className="min-w-0">
+                    {label}
+                    <span className="block text-[10px] font-mono text-muted truncate">{desc}</span>
+                  </span>
                 </li>
               ))}
             </ul>

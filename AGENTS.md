@@ -50,8 +50,15 @@ toque em recon, scraping ou triagem deve respeitar isso.
   quantos scans rodam ao mesmo tempo.
 - **IA**: Google Gemini (`google-genai`), não Anthropic/OpenAI — chave em
   `settings.gemini_api_key` / `settings.gemini_model` (`app/config.py`).
-- **Frontend**: Next.js 16 + React 19 + Tailwind + React Query +
-  `react-markdown` (já instalado, pensado pra renderizar o relatório final).
+- **Frontend**: Vite + React 19 + Tailwind 4 + `react-router-dom` +
+  `react-markdown` (renderiza o relatório do backend). SPA, sem SSR e sem
+  login. Gerenciador de pacotes **pnpm** (versão em `frontend/.mise.toml`).
+  Em dev, o Vite faz proxy de `/api` pro backend (`VITE_PROXY_TARGET`,
+  padrão `http://localhost:8000`).
+- **Caminhos absolutos no `.env` do servidor**: `SUBFINDER_PATH`,
+  `HTTPX_PATH` e `GITLEAKS_PATH` devem apontar pro binário (ex.:
+  `/home/ubuntu/go/bin/subfinder`). Um processo iniciado via SSH não-interativo
+  não tem `~/go/bin` no `PATH`, e o scan falha em `enumerating`.
 - **Ferramentas externas** (precisam estar no PATH, caminho configurável em
   `app/config.py`): `subfinder`, `httpx` (ProjectDiscovery), `nmap`,
   `gitleaks`.
@@ -85,7 +92,7 @@ toque em recon, scraping ou triagem deve respeitar isso.
 | Endpoints de domínio/scan (RF01, RF15, RF16 — issues #9, #10) | `app/routers/domains.py`, `app/routers/scans.py`, `app/schemas/domain.py`, `app/schemas/scan.py` | ✅ pronto |
 | **Módulo Código Web** (RF05-RF09 — issues #11-#15, #31) | `app/services/js_scanner/{discovery,downloader,endpoint_extractor,secret_scanner,sensitive_files}.py` | ✅ implementado e integrado ao pipeline; testado com unit + integração (mock de rede) |
 | **Módulo Agente de IA** (RF10-RF13 — issues #16-#19, #32) | `app/services/ai_triage/` | ✅ triagem em lotes (#17), prompts e relatório Markdown/PDF (#32); integrado no pipeline (#20); endpoints (#21) feitos; avaliação RF17 (#29) ainda não implementada |
-| Painel/frontend (issues #22-#25) | `frontend/app/page.tsx` | 🔲 só placeholder |
+| Painel/frontend (issues #22-#25) | `frontend/src/` (`lib/api.ts`, `lib/adapters.ts`, `App.tsx`) | ✅ conectado à API real; testado com scan real |
 | `docker-compose` opcional (issue #30) | — | 🔲 não implementado, fase-5, não bloqueante |
 
 > **Branch de trabalho atual**: `dev-local`, com a infraestrutura e a base
@@ -259,19 +266,25 @@ API já disponível:
   `enumerating`, `probing`, `port_scanning`, `checking_takeover`,
   `scanning_js`, `triaging`, `completed`, `failed`) + `subdomains` +
   `findings` quando disponíveis.
-- `GET /api/domains` — lista de domínios com status do último scan
-  (`latest_scan_status`) — RF16.
+- `GET /api/domains` — lista de domínios com id e status do último scan
+  (`latest_scan_id`, `latest_scan_status`) — RF16.
 - `GET /api/domains/{id}` — detalhe de um domínio.
 - `POST /api/domains/{id}/rescan` — dispara novo scan pra domínio já
   autorizado.
 
-TODO:
-1. `lib/api.ts` — client HTTP tipado pra essa API (issue #22).
-2. Form de submissão de domínio com checkbox de autorização (RF01, issue #23).
-3. Lista de domínios/scans (issue #24), fazendo polling em
-   `GET /api/scans/{id}` pra status em andamento (RF15).
-4. Página de detalhe do domínio — overview/findings/report (RF14, issue #25)
-   — depende do módulo Agente de IA existir (`Report.markdown_content`).
+Implementado (issues #22-#25):
+- `src/lib/api.ts` — client tipado (tipos espelham `app/schemas/`).
+- `src/lib/adapters.ts` — converte a resposta da API pros tipos de
+  `src/types.ts` que os componentes usam. Mudou o schema? Ajuste os dois.
+- `NewScanModal` — submissão com checkbox de autorização obrigatório; erros
+  da API (formato, anti-SSRF) aparecem no próprio modal.
+- `App.tsx` — histórico de domínios na sidebar + detalhe do último scan,
+  com polling de 3s enquanto o scan roda (RF15) e botão de reanálise.
+- `FinalReport`/`ReportModal` — relatório Markdown do backend, downloads
+  `.md` e `.pdf`; botões só habilitam com o scan `completed`.
+
+Pendente: histórico de scans anteriores de um mesmo domínio (a API ainda não
+lista scans por domínio; só o último fica acessível pela UI).
 
 ## Tabela de rastreabilidade RF → código
 
@@ -290,7 +303,7 @@ TODO:
 | RF11 | IA classifica falso positivo x real | `app/services/ai_triage/` ✅ módulo isolado; validação real pendente |
 | RF12 | IA estima severidade | `app/services/ai_triage/` ✅ módulo isolado; validação real pendente |
 | RF13 | Gerar relatório técnico | `report_builder.py` + `report_pdf.py` + `routers/reports.py` ✅ (Markdown e PDF) |
-| RF14 | Painel mostra tudo | `frontend/` 🔲 |
-| RF15 | Acompanhamento de status | `app/routers/scans.py` ✅ (API) / `frontend/` 🔲 (UI) |
+| RF14 | Painel mostra tudo | `frontend/src/` ✅ |
+| RF15 | Acompanhamento de status | `app/routers/scans.py` ✅ (API) / `frontend/src/App.tsx` ✅ (UI, polling) |
 | RF16 | Histórico no banco | `app/routers/domains.py::list_domains` ✅ |
 | RF17 | Casos de teste da IA | `backend/tests/` 🔲 |
