@@ -48,7 +48,7 @@ def report_summary(findings: list[Finding]) -> str:
 
 
 def _text(value: str) -> str:
-    return re.sub(r"([\\`*_\[\]#])", r"\\\1", escape(value))
+    return re.sub(r"([\\`*_\[\]#])", r"\\\1", escape(value, quote=False))
 
 
 def _block(value: object) -> str:
