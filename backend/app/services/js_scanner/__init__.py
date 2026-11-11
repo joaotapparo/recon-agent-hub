@@ -54,6 +54,7 @@ class LiveHost:
     hostname: str
     url: str  # URL final que o httpx sondou, ex.: https://app.exemplo.com
     body: str | None = None  # HTML capturado pelo httpx (-include-response)
+    tech: list[str] | None = None  # tecnologias detectadas pelo httpx, ex.: "PHP:7.4.3"
 
 
 async def scan_hosts(db: Session, scan_job: ScanJob, live_hosts: list[LiveHost]) -> None:

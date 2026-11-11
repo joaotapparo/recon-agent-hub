@@ -21,6 +21,10 @@ const BY_TOOL: Record<string, Impact> = {
     why: 'Um site malicioso pode ler dados de clientes que estejam logados no seu sistema.',
     fix: 'Permitir acesso apenas dos domínios da própria empresa na configuração de CORS da API.',
   },
+  'dns-security': {
+    why: 'Sem DNSSEC, um atacante pode falsificar o "endereço" do site e desviar clientes para uma cópia falsa; sem CAA, qualquer autoridade pode emitir certificado em nome da empresa.',
+    fix: 'Ativar DNSSEC no provedor de DNS (muitos fazem com um clique) e publicar um registro CAA com a autoridade que a empresa usa.',
+  },
   'email-security': {
     why: 'Golpistas podem enviar e-mails em nome da empresa para clientes e funcionários (phishing), com risco de fraude e dano à marca.',
     fix: 'Publicar registros SPF e DMARC no DNS, começando em modo de monitoramento e evoluindo para bloqueio (p=reject).',
@@ -47,6 +51,14 @@ const BY_TYPE: Record<Finding['type'], Impact> = {
   open_port: {
     why: 'Cada serviço exposto na internet é mais uma porta de entrada para tentativas de invasão.',
     fix: 'Fechar no firewall as portas que não precisam estar públicas.',
+  },
+  vulnerable_component: {
+    why: 'O site roda uma versão de software com falhas públicas conhecidas; criminosos usam ferramentas automáticas que procuram exatamente essas versões.',
+    fix: 'Atualizar o software para a versão mais recente suportada e esconder a versão nos cabeçalhos do servidor.',
+  },
+  credential_leak: {
+    why: 'Senhas de funcionários vazadas em outros sites costumam ser reutilizadas para invadir sistemas da empresa.',
+    fix: 'Exigir troca de senha das contas afetadas e ativar autenticação em dois fatores (2FA).',
   },
   web_config: {
     why: 'Configuração de segurança abaixo do recomendado.',

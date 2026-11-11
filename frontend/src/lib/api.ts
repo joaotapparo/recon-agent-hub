@@ -21,7 +21,9 @@ export type FindingCategory =
   | 'open_port'
   | 'exposed_secret'
   | 'exposed_endpoint'
-  | 'misconfiguration';
+  | 'misconfiguration'
+  | 'vulnerable_component'
+  | 'credential_leak';
 
 export type AIVerdict = 'pending' | 'true_positive' | 'false_positive' | 'needs_review';
 export type Severity = 'info' | 'low' | 'medium' | 'high' | 'critical';
@@ -61,6 +63,8 @@ export interface ApiSubdomain {
   open_ports: ApiOpenPort[] | null;
   takeover_candidate: boolean;
   takeover_fingerprint: string | null;
+  /** null = não verificado; "" = nenhum firewall detectado */
+  waf: string | null;
 }
 
 export interface ApiScanJob {

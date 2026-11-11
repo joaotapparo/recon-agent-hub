@@ -140,6 +140,7 @@ async def run_scan_job(scan_job_id: int) -> None:
                 hostname=s.hostname,
                 url=probed_by_host[s.hostname].get("url") or f"https://{s.hostname}",
                 body=probed_by_host[s.hostname].get("body"),
+                tech=probed_by_host[s.hostname].get("tech"),
             )
             for s in targets
         ]

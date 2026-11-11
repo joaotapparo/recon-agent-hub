@@ -45,6 +45,11 @@ class Settings(BaseSettings):
     # scanme.nmap.org (projeto nmap) e *.vulnweb.com (Acunetix).
     verification_exempt_domains: list[str] = ["scanme.nmap.org", "vulnweb.com"]
 
+    # Opcionais da Auditoria Web: sem chave o NVD funciona mais devagar
+    # (5 consultas/30s); sem HIBP_API_KEY a consulta de vazamentos e pulada.
+    nvd_api_key: str = ""
+    hibp_api_key: str = ""
+
     cors_origins: list[str] = ["http://localhost:3000", "http://localhost:5173"]
 
 

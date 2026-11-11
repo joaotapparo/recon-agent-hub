@@ -1,4 +1,5 @@
-import type { AnalysisStage, Finding } from '../types';
+import type { ApiScanEvent } from '../lib/api';
+import type { AnalysisStage, Finding, Subdomain } from '../types';
 
 export type CheckState = 'pass' | 'warn' | 'fail' | 'running' | 'pending' | 'skipped';
 
@@ -10,6 +11,28 @@ export interface CheckDef {
   match: (f: Finding) => boolean;
   /** achado confirmado aqui é sempre grave, independente da severidade */
   alwaysSevere?: boolean;
+  /**
+   * Trecho de evento que prova que o teste rodou. Testes adicionados depois
+   * (ou opcionais, como vazamentos) não rodaram em scans antigos/sem chave;
+   * sem o evento eles aparecem como "Não testado", nunca como aprovados.
+   * Precisa casar com a mensagem emitida em app/services/web_audit/__init__.py.
+   */
+  marker?: string;
+  /** avaliação própria quando o resultado não vem de achados (ex.: WAF) */
+  custom?: (ctx: CheckContext) => CheckState | null;
+}
+
+export interface CheckContext {
+  stages: AnalysisStage[];
+  findings: Finding[];
+  events: ApiScanEvent[];
+  subdomains: Subdomain[];
+}
+
+function wafState({ subdomains }: CheckContext): CheckState | null {
+  const checked = subdomains.filter((s) => s.status === 'active' && s.waf != null);
+  if (!checked.length) return null;
+  return checked.every((s) => s.waf) ? 'pass' : 'warn';
 }
 
 export const CHECKS: CheckDef[] = [
@@ -21,6 +44,10 @@ export const CHECKS: CheckDef[] = [
   { title: 'Senhas no código', question: 'O código do site entrega senhas ou chaves de API?', stage: 'js', match: (f) => f.type === 'secret' },
   { title: 'Rotas internas', question: 'O código revela partes internas do sistema?', stage: 'js', match: (f) => f.type === 'endpoint' },
   { title: 'Endereços abandonados', question: 'Algum subdomínio pode ser sequestrado?', stage: 'infra', match: (f) => f.type === 'takeover', alwaysSevere: true },
+  { title: 'Software atualizado', question: 'O site usa versões com falhas conhecidas?', stage: 'web', match: (f) => f.type === 'vulnerable_component', marker: 'falhas conhecidas nas versões' },
+  { title: 'Proteção do DNS', question: 'O endereço do site pode ser falsificado?', stage: 'web', match: (f) => f.sourceTool === 'dns-security', marker: 'proteção do DNS' },
+  { title: 'Firewall de aplicação', question: 'Há um escudo filtrando ataques antes do site?', stage: 'web', match: () => false, marker: 'firewall de aplicação', custom: wafState },
+  { title: 'E-mails vazados', question: 'E-mails da empresa aparecem em vazamentos de dados?', stage: 'web', match: (f) => f.type === 'credential_leak', marker: 'vazamentos de dados' },
 ];
 
 const STATE: Record<CheckState, { label: string; color: string; icon: string }> = {
@@ -32,12 +59,8 @@ const STATE: Record<CheckState, { label: string; color: string; icon: string }> 
   skipped: { label: 'Não testado', color: 'text-muted border-border bg-surface-2', icon: '–' },
 };
 
-export function evaluate(
-  check: CheckDef,
-  stages: AnalysisStage[],
-  findings: Finding[],
-  ranStages: Set<string>,
-): { state: CheckState; count: number } {
+export function evaluate(check: CheckDef, ctx: CheckContext): { state: CheckState; count: number } {
+  const { stages, findings, events } = ctx;
   const relevant = findings.filter((f) => check.match(f) && f.status !== 'false_positive');
   const stage = stages.find((s) => s.key === check.stage);
   if (relevant.length) {
@@ -49,8 +72,11 @@ export function evaluate(
   // A auditoria web é a única etapa que não existia nas primeiras versões:
   // scan concluído sem nenhum evento dela não rodou esses testes.
   if (stage?.status === 'completed') {
-    const ran = check.stage !== 'web' || ranStages.has('web');
-    return { state: ran ? 'pass' : 'skipped', count: 0 };
+    const ran = check.marker
+      ? events.some((e) => e.message.includes(check.marker!))
+      : check.stage !== 'web' || events.some((e) => e.stage === 'web_audit');
+    if (!ran) return { state: 'skipped', count: 0 };
+    return { state: check.custom?.(ctx) ?? 'pass', count: 0 };
   }
   if (stage?.status === 'running') return { state: 'running', count: 0 };
   return { state: 'pending', count: 0 };
@@ -77,15 +103,10 @@ function ScoreRing({ passed, total, done }: { passed: number; total: number; don
   );
 }
 
-interface Props {
-  stages: AnalysisStage[];
-  findings: Finding[];
-  /** chaves de etapa (AnalysisStage.key) que deixaram registro no feed */
-  ranStages: Set<string>;
-}
+type Props = CheckContext;
 
-export default function SecurityChecklist({ stages, findings, ranStages }: Props) {
-  const results = CHECKS.map((check) => ({ check, ...evaluate(check, stages, findings, ranStages) }));
+export default function SecurityChecklist(ctx: Props) {
+  const results = CHECKS.map((check) => ({ check, ...evaluate(check, ctx) }));
   const tested = results.filter((r) => r.state !== 'skipped');
   const passed = tested.filter((r) => r.state === 'pass').length;
   const done = results.every((r) => r.state !== 'running' && r.state !== 'pending');

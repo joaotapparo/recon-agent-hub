@@ -5,7 +5,15 @@
 export type SeverityLevel = 'critical' | 'high' | 'medium' | 'low' | 'info' | 'unrated';
 export type FindingStatus = 'confirmed' | 'false_positive' | 'analyzing' | 'needs_review';
 export type AnalysisStatus = 'running' | 'completed' | 'error';
-export type FindingType = 'secret' | 'endpoint' | 'sensitive_file' | 'web_config' | 'takeover' | 'open_port';
+export type FindingType =
+  | 'secret'
+  | 'endpoint'
+  | 'sensitive_file'
+  | 'web_config'
+  | 'takeover'
+  | 'open_port'
+  | 'vulnerable_component'
+  | 'credential_leak';
 
 export interface Finding {
   id: string;
@@ -31,6 +39,8 @@ export interface Subdomain {
   status: 'active' | 'inactive';
   ip?: string;
   ports: number[];
+  /** null = não verificado; "" = nenhum firewall detectado */
+  waf?: string | null;
 }
 
 export interface OpenPort {

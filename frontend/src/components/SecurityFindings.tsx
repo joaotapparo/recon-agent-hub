@@ -183,6 +183,8 @@ export default function SecurityFindings({ findingsList }: SecurityFindingsProps
             { value: 'endpoint', label: 'Endpoint' },
             { value: 'sensitive_file', label: 'Arquivos sensíveis' },
             { value: 'web_config', label: 'Configuração web' },
+            { value: 'vulnerable_component', label: 'Software vulnerável' },
+            { value: 'credential_leak', label: 'Vazamento de dados' },
             { value: 'takeover', label: 'Takeover' },
             { value: 'open_port', label: 'Porta aberta' },
           ]}

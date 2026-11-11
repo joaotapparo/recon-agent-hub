@@ -152,6 +152,11 @@ export default function AttackSurfaceMap({ domain, subdomains, findings, running
               {hovered.sub.ip ?? 'sem IP'} · {hovered.sub.ports.length ? `portas ${hovered.sub.ports.join(', ')}` : 'sem portas abertas'}
             </p>
             <p style={{ color: RISK[hovered.risk].fill }}>{RISK[hovered.risk].label}</p>
+            {hovered.sub.waf != null && (
+              <p className={hovered.sub.waf ? 'text-ok' : 'text-med'}>
+                {hovered.sub.waf ? `Protegido por ${hovered.sub.waf}` : 'Sem firewall de aplicação detectado'}
+              </p>
+            )}
           </div>
         )}
         {subdomains.length === 0 && (

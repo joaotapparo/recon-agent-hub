@@ -16,6 +16,7 @@ class SubdomainOut(BaseModel):
     open_ports: list | None = None
     takeover_candidate: bool
     takeover_fingerprint: str | None = None
+    waf: str | None = None
 
 
 class FindingOut(BaseModel):

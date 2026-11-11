@@ -193,6 +193,21 @@ def test_audit_hosts_persists_findings_and_events(db, scan_job, monkeypatch):
 
     monkeypatch.setattr(web_audit, "check_email_security", email)
 
+    async def dns_sec(domain):
+        return {"domain": domain, "dnssec": True, "caa": ["0 issue \"letsencrypt.org\""], "issues": []}
+
+    monkeypatch.setattr(web_audit, "check_dns_security", dns_sec)
+
+    async def nvd_lookup(self, component):
+        assert component.cpe == "cpe:2.3:a:apache:http_server:2.4.29:*:*:*:*:*:*:*"
+        return {"vulnerabilities": [{"cve": {
+            "id": "CVE-2021-40438", "cisaExploitAdd": "2021-12-01",
+            "metrics": {"cvssMetricV31": [{"cvssData": {"baseScore": 9.0, "baseSeverity": "CRITICAL"}}]},
+            "descriptions": [{"lang": "en", "value": "SSRF in mod_proxy"}],
+        }}]}
+
+    monkeypatch.setattr(web_audit.NvdClient, "lookup", nvd_lookup)
+
     hosts = [
         LiveHost(subdomain_id=None, hostname="app.example.com", url="https://app.example.com"),
         LiveHost(subdomain_id=None, hostname="old.example.com", url="http://old.example.com"),
@@ -201,8 +216,13 @@ def test_audit_hosts_persists_findings_and_events(db, scan_job, monkeypatch):
     asyncio.run(web_audit.audit_hosts(db, scan_job, hosts))
 
     findings = db.scalars(select(Finding)).all()
-    assert {f.category for f in findings} == {FindingCategory.MISCONFIGURATION}
     assert {f.ai_verdict for f in findings} == {AIVerdict.PENDING}
+    # mesmo Apache nos dois hosts: um achado de CVE so, listando os dois
+    cve = [f for f in findings if f.category == FindingCategory.VULNERABLE_COMPONENT]
+    assert len(cve) == 1
+    assert cve[0].raw_evidence["known_exploited"] == ["CVE-2021-40438"]
+    assert len(cve[0].raw_evidence["hosts"]) == 2
+    findings = [f for f in findings if f.category == FindingCategory.MISCONFIGURATION]
     tools = sorted(f.source_tool for f in findings)
     # app + old: headers ausentes, versao exposta, CORS; app: certificado; old: sem HTTPS; dominio: e-mail
     assert tools.count("security-headers") == 4
@@ -244,3 +264,72 @@ def test_events_endpoint_is_incremental(session_factory, db, scan_job):
         assert client.get("/api/scans/999/events").status_code == 404
     finally:
         app.dependency_overrides.clear()
+
+
+# ── WAF, CVE, DNS, vazamentos ─────────────────────────────────────────────
+
+from app.services.web_audit.breaches import summarize_breaches  # noqa: E402
+from app.services.web_audit.cve_lookup import (  # noqa: E402
+    components_from,
+    merge,
+    summarize,
+)
+from app.services.web_audit.dns_security import analyze_dns_security  # noqa: E402
+from app.services.web_audit.waf import detect_waf  # noqa: E402
+
+
+@pytest.mark.parametrize(("headers", "cookies", "expected"), [
+    ({"Server": "cloudflare", "CF-RAY": "abc"}, [], "Cloudflare"),
+    ({"X-Amz-Cf-Id": "x"}, [], "AWS CloudFront"),
+    ({}, ["incap_ses_123=abc; path=/"], "Imperva / Incapsula"),
+    ({"Server": "Apache/2.4.7"}, ["PHPSESSID=1"], None),
+])
+def test_detect_waf(headers, cookies, expected):
+    assert detect_waf(headers, cookies) == expected
+
+
+def test_components_from_headers_and_tech():
+    comps = components_from(
+        "http://a.example.com",
+        {"server": "nginx", "x-powered-by": "PHP/7.4.3"},
+        ["jQuery:1.8.2", "Bootstrap", "Unknown:1.0"],
+    )
+    assert {(c.name, c.version) for c in comps} == {("PHP", "7.4.3"), ("jQuery", "1.8.2")}
+
+
+def test_backport_hint_is_recorded():
+    [comp] = components_from("http://a", {"server": "Apache/2.4.7 (Ubuntu)"}, None)
+    assert comp.backport_possible
+    assert "Ubuntu" in summarize(comp, {"vulnerabilities": []})["caveat"]
+
+
+def test_merge_joins_hosts():
+    a = components_from("http://a", {"server": "nginx/1.18.0"}, None)
+    b = components_from("http://b", {"server": "nginx/1.18.0"}, None)
+    [merged] = merge(a + b)
+    assert merged.hosts == ["http://a", "http://b"]
+
+
+def test_summarize_orders_exploited_first():
+    [comp] = components_from("http://a", {"server": "nginx/1.18.0"}, None)
+    data = {"vulnerabilities": [
+        {"cve": {"id": "CVE-1", "metrics": {"cvssMetricV31": [{"cvssData": {"baseScore": 9.8, "baseSeverity": "CRITICAL"}}]}}},
+        {"cve": {"id": "CVE-2", "cisaExploitAdd": "2024-01-01",
+                 "metrics": {"cvssMetricV31": [{"cvssData": {"baseScore": 5.0, "baseSeverity": "MEDIUM"}}]}}},
+    ]}
+    summary = summarize(comp, data)
+    assert [c["id"] for c in summary["top_cves"]] == ["CVE-2", "CVE-1"]
+    assert summary["by_severity"] == {"CRITICAL": 1, "MEDIUM": 1}
+
+
+def test_dns_security_issues():
+    assert analyze_dns_security("x.com", dnssec=True, caa=["0 issue \"letsencrypt.org\""])["issues"] == []
+    assert len(analyze_dns_security("x.com", dnssec=False, caa=[])["issues"]) == 2
+
+
+def test_breach_summary_masks_emails():
+    result = summarize_breaches("empresa.com", {"joao": ["Adobe", "LinkedIn"], "maria": ["LinkedIn"]})
+    assert result["accounts"] == 2
+    assert result["breaches"] == {"LinkedIn": 2, "Adobe": 1}
+    assert result["sample_accounts"] == ["j***@empresa.com", "m***@empresa.com"]
+    assert "joao" not in str(result)

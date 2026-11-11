@@ -26,7 +26,7 @@ import {
   type ApiScanSummary,
   type ScanStatus,
 } from './lib/api';
-import { STAGES, toDataset, toHistoryItem } from './lib/adapters';
+import { toDataset, toHistoryItem } from './lib/adapters';
 import type { ScanDataset } from './types';
 
 const POLL_RUNNING_MS = 3000;
@@ -194,13 +194,6 @@ export default function App() {
   const replayOrder: ScanStatus[] = ['scanning_js', 'triaging', 'completed'];
   const shownShots = !replay.active || replayOrder.includes(shownStatus) ? shots : [];
 
-  const ranStages = useMemo(
-    () =>
-      new Set(
-        STAGES.filter((st) => shownEvents.some((e) => st.statuses.includes(e.stage as ScanStatus))).map((st) => st.key),
-      ),
-    [shownEvents],
-  );
 
   return (
     <div className="flex h-screen w-full bg-bg text-foreground overflow-hidden">
@@ -307,7 +300,8 @@ export default function App() {
                   <SecurityChecklist
                     stages={shown.stages}
                     findings={shown.findings}
-                    ranStages={ranStages}
+                    events={shownEvents}
+                    subdomains={shown.subdomains}
                   />
                 </div>
                 <SiteGallery

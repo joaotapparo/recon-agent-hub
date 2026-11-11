@@ -33,6 +33,7 @@ function findingStage(f: ApiFinding): ScanStatus {
   if (f.category === 'open_port') return 'port_scanning';
   if (f.category === 'subdomain_takeover') return 'checking_takeover';
   if (f.category === 'misconfiguration' && f.source_tool !== 'sensitive-files') return 'web_audit';
+  if (f.category === 'vulnerable_component' || f.category === 'credential_leak') return 'web_audit';
   return 'scanning_js';
 }
 
@@ -66,6 +67,7 @@ function buildView(src: ReplaySource, played: number): ReplayView {
         (p) => passed('port_scanning') || text.includes(`Porta ${p.port}/${p.protocol ?? 'tcp'} aberta em ${s.hostname}`),
       ),
       takeover_candidate: passed('checking_takeover') && s.takeover_candidate,
+      waf: passed('web_audit') ? s.waf : null,
     }));
 
   const aiDone = passed('triaging');

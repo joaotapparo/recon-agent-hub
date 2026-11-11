@@ -7,8 +7,12 @@ ssrf_guard):
 1. cabecalhos de seguranca, vazamento de versao e flags de cookie (headers.py);
 2. CORS que aceita qualquer origem (cors.py);
 3. HTTPS disponivel e certificado TLS valido/perto de expirar (tls.py);
+4. firewall de aplicacao/CDN pela assinatura dos cabecalhos (waf.py);
+5. versoes de software expostas -> CVEs conhecidos no NVD (cve_lookup.py);
 
-e, uma vez por scan, SPF/DMARC do dominio raiz (email_security.py).
+e, uma vez por scan, no dominio raiz: SPF/DMARC (email_security.py),
+DNSSEC/CAA (dns_security.py) e, se HIBP_API_KEY estiver configurada,
+e-mails do dominio em vazamentos (breaches.py).
 
 Nada aqui explora falha: sao no maximo duas requisicoes GET e um handshake
 TLS por host, iguais ao que um navegador faz. Os achados nascem
@@ -24,12 +28,28 @@ import httpx
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.models import AIVerdict, EventKind, Finding, FindingCategory, ScanJob
+from app.models import (
+    AIVerdict,
+    EventKind,
+    Finding,
+    FindingCategory,
+    ScanJob,
+    Subdomain,
+)
 from app.services.js_scanner import LiveHost
 from app.services.js_scanner.discovery import is_in_scope
 from app.services.js_scanner.downloader import HostGuard, build_client
 from app.services.scan_events import emit
+from app.services.web_audit.breaches import BreachLookupError, check_breaches
 from app.services.web_audit.cors import PROBE_ORIGIN, analyze_cors
+from app.services.web_audit.cve_lookup import (
+    Component,
+    NvdClient,
+    components_from,
+    merge,
+    summarize,
+)
+from app.services.web_audit.dns_security import check_dns_security
 from app.services.web_audit.email_security import check_email_security
 from app.services.web_audit.headers import SECURITY_HEADERS, analyze_headers
 from app.services.web_audit.tls import (
@@ -37,6 +57,7 @@ from app.services.web_audit.tls import (
     CertInfo,
     inspect_certificate,
 )
+from app.services.web_audit.waf import detect_waf
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +66,7 @@ __all__ = ["audit_hosts"]
 STAGE = "web_audit"
 _MAX_PARALLEL_HOSTS = 8
 _TARGET_MAX = 512
+_MAX_COMPONENTS = 8  # cada um e uma consulta ao NVD (6,5 s sem chave)
 
 
 @dataclass
@@ -52,6 +74,8 @@ class _HostResult:
     host: LiveHost
     findings: list[Finding] = field(default_factory=list)
     events: list[tuple[EventKind, str]] = field(default_factory=list)
+    waf: str | None = None  # None = nao verificado, "" = nenhuma assinatura
+    components: list[Component] = field(default_factory=list)
 
 
 async def audit_hosts(db: Session, scan_job: ScanJob, live_hosts: list[LiveHost]) -> None:
@@ -68,13 +92,21 @@ async def audit_hosts(db: Session, scan_job: ScanJob, live_hosts: list[LiveHost]
                 return await _audit_host(client, guard, scan_job, host)
 
         # resultados ficam em memoria e a sessao so e usada aqui, fora das tasks
+        components: list[Component] = []
         for coro in asyncio.as_completed([audit(h) for h in hosts]):
             result = await coro
             for kind, message in result.events:
                 emit(db, scan_job.id, STAGE, message, kind)
             for finding in result.findings:
                 db.add(finding)
+            if result.waf is not None and result.host.subdomain_id is not None:
+                subdomain = db.get(Subdomain, result.host.subdomain_id)
+                if subdomain is not None:
+                    subdomain.waf = result.waf
+            components += result.components
             db.commit()
+
+    await _check_cves(db, scan_job, merge(components))
 
     emit(db, scan_job.id, STAGE, f"Consultando SPF e DMARC de {domain_name} (proteção contra e-mail falso)")
     email = await check_email_security(domain_name)
@@ -93,6 +125,93 @@ async def audit_hosts(db: Session, scan_job: ScanJob, live_hosts: list[LiveHost]
     else:
         emit(db, scan_job.id, STAGE, f"E-mail protegido: DMARC p={email['dmarc_policy']}", EventKind.FOUND)
 
+    await _check_dns(db, scan_job)
+    await _check_breaches(db, scan_job)
+
+
+async def _check_cves(db: Session, scan_job: ScanJob, components: list[Component]) -> None:
+    emit(db, scan_job.id, STAGE, "Procurando falhas conhecidas nas versões de software (base pública NVD)")
+    if not components:
+        emit(db, scan_job.id, STAGE, "Nenhuma versão exata de software ficou exposta", EventKind.FOUND)
+        return
+    nvd = NvdClient()
+    for component in components[:_MAX_COMPONENTS]:
+        label = f"{component.name} {component.version}"
+        emit(db, scan_job.id, STAGE, f"Consultando falhas públicas de {label}")
+        data = await nvd.lookup(component)
+        if data is None:
+            emit(db, scan_job.id, STAGE, f"Não foi possível consultar a base de falhas para {label}", EventKind.WARN)
+            continue
+        summary = summarize(component, data)
+        total = summary["total_cves"]
+        if not total:
+            emit(db, scan_job.id, STAGE, f"{label}: nenhuma falha pública conhecida", EventKind.FOUND)
+            continue
+        critical = summary["by_severity"].get("CRITICAL", 0)
+        exploited = len(summary["known_exploited"])
+        message = f"{label}: {total} falha(s) pública(s) conhecida(s)"
+        if critical:
+            message += f", {critical} crítica(s)"
+        if exploited:
+            message += f", {exploited} já explorada(s) por criminosos"
+        emit(db, scan_job.id, STAGE, message, EventKind.ALERT if critical or exploited else EventKind.WARN)
+        db.add(_finding(
+            scan_job, None,
+            category=FindingCategory.VULNERABLE_COMPONENT,
+            source_tool="cve-lookup",
+            title=f"{label} com {total} falha(s) pública(s) conhecida(s) (CVE)",
+            target=component.hosts[0],
+            evidence=summary,
+        ))
+        db.commit()
+
+
+async def _check_dns(db: Session, scan_job: ScanJob) -> None:
+    domain_name = scan_job.domain.name
+    emit(db, scan_job.id, STAGE, "Verificando a proteção do DNS (DNSSEC e CAA)")
+    result = await check_dns_security(domain_name)
+    if result is None:
+        emit(db, scan_job.id, STAGE, "Não foi possível consultar a proteção do DNS", EventKind.WARN)
+    elif result["issues"]:
+        emit(db, scan_job.id, STAGE, f"DNS: {'; '.join(result['issues'])}", EventKind.WARN)
+        db.add(_finding(
+            scan_job, None,
+            source_tool="dns-security",
+            title=f"Proteções de DNS ausentes em {domain_name} ({', '.join(result['issues'])})",
+            target=domain_name,
+            evidence=result,
+        ))
+        db.commit()
+    else:
+        emit(db, scan_job.id, STAGE, "DNS protegido: DNSSEC ativo e CAA configurado", EventKind.FOUND)
+
+
+async def _check_breaches(db: Session, scan_job: ScanJob) -> None:
+    domain_name = scan_job.domain.name
+    if not settings.hibp_api_key:
+        return  # opcional e pago: sem chave nao ha evento, e o painel mostra "Nao testado"
+    emit(db, scan_job.id, STAGE, f"Consultando vazamentos de dados com e-mails @{domain_name} (HaveIBeenPwned)")
+    try:
+        result = await check_breaches(domain_name)
+    except BreachLookupError as exc:
+        emit(db, scan_job.id, STAGE, f"Consulta de vazamentos falhou: {exc}", EventKind.WARN)
+        return
+    if not result or not result["accounts"]:
+        emit(db, scan_job.id, STAGE, "Nenhum e-mail do domínio em vazamentos conhecidos", EventKind.FOUND)
+        return
+    emit(db, scan_job.id, STAGE,
+         f"{result['accounts']} e-mail(s) @{domain_name} apareceram em {len(result['breaches'])} vazamento(s)",
+         EventKind.ALERT)
+    db.add(_finding(
+        scan_job, None,
+        category=FindingCategory.CREDENTIAL_LEAK,
+        source_tool="hibp",
+        title=f"{result['accounts']} e-mail(s) de {domain_name} em vazamentos de dados conhecidos",
+        target=domain_name,
+        evidence=result,
+    ))
+    db.commit()
+
 
 async def _audit_host(
     client: httpx.AsyncClient, guard: HostGuard, scan_job: ScanJob, host: LiveHost
@@ -105,6 +224,9 @@ async def _audit_host(
     response = await _get_headers(client, host.url)
     if response is not None:
         _check_headers(scan_job, result, response)
+        _check_waf(result, response)
+        lower = {k.lower(): v for k, v in response.headers.items()}
+        result.components = components_from(host.url, lower, host.tech)
     cors_response = await _get_headers(client, host.url, origin=PROBE_ORIGIN)
     if cors_response is not None:
         _check_cors(scan_job, result, cors_response)
@@ -155,6 +277,15 @@ def _check_headers(scan_job: ScanJob, result: _HostResult, response: httpx.Respo
             target=host.url,
             evidence=report.disclosure_evidence(),
         ))
+
+
+def _check_waf(result: _HostResult, response: httpx.Response) -> None:
+    host = result.host
+    result.waf = detect_waf(response.headers, response.headers.get_list("set-cookie")) or ""
+    if result.waf:
+        result.events.append((EventKind.FOUND, f"{host.hostname} protegido por {result.waf} (firewall de aplicação)"))
+    else:
+        result.events.append((EventKind.WARN, f"{host.hostname}: nenhum firewall de aplicação detectado"))
 
 
 def _check_cors(scan_job: ScanJob, result: _HostResult, response: httpx.Response) -> None:
@@ -226,13 +357,20 @@ def _cert_ok_message(cert: CertInfo) -> str:
 
 
 def _finding(
-    scan_job: ScanJob, host: LiveHost | None, *, source_tool: str, title: str, target: str, evidence: dict
+    scan_job: ScanJob,
+    host: LiveHost | None,
+    *,
+    source_tool: str,
+    title: str,
+    target: str,
+    evidence: dict,
+    category: FindingCategory = FindingCategory.MISCONFIGURATION,
 ) -> Finding:
     return Finding(
         scan_job_id=scan_job.id,
         domain_id=scan_job.domain_id,
         subdomain_id=host.subdomain_id if host else None,
-        category=FindingCategory.MISCONFIGURATION,
+        category=category,
         source_tool=source_tool,
         title=title[:255],
         target=target[:_TARGET_MAX],

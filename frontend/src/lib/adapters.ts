@@ -166,13 +166,14 @@ export function toStages(status: ScanStatus): AnalysisStage[] {
 // ── Achados ───────────────────────────────────────────────────────────────
 
 // Ferramentas da Auditoria Web também gravam como misconfiguration.
-const WEB_CONFIG_TOOLS = new Set(['security-headers', 'cors-check', 'tls-check', 'email-security']);
+const WEB_CONFIG_TOOLS = new Set(['security-headers', 'cors-check', 'tls-check', 'email-security', 'dns-security']);
 
 const WEB_CHECK_LABEL: Record<string, string> = {
   'security-headers': 'Cabeçalhos',
   'cors-check': 'CORS',
   'tls-check': 'HTTPS / TLS',
   'email-security': 'E-mail (SPF/DMARC)',
+  'dns-security': 'DNS (DNSSEC/CAA)',
 };
 
 function findingType(f: ApiFinding): FindingType {
@@ -186,6 +187,8 @@ const TYPE_BY_CATEGORY: Record<FindingCategory, FindingType> = {
   misconfiguration: 'sensitive_file',
   subdomain_takeover: 'takeover',
   open_port: 'open_port',
+  vulnerable_component: 'vulnerable_component',
+  credential_leak: 'credential_leak',
 };
 
 const STATUS_BY_VERDICT: Record<AIVerdict, FindingStatus> = {
@@ -243,6 +246,13 @@ function describe(f: ApiFinding, ev: Evidence): string {
       return `O subdomínio aponta (CNAME ${str(ev.cname) ?? '?'}) para um serviço que parece não estar mais provisionado.`;
     case 'open_port':
       return 'Portas TCP abertas detectadas pelo nmap.';
+    case 'vulnerable_component': {
+      const total = typeof ev.total_cves === 'number' ? ev.total_cves : '?';
+      const exploited = Array.isArray(ev.known_exploited) ? ev.known_exploited.length : 0;
+      return `O servidor informa usar ${str(ev.component) ?? 'um software'} ${str(ev.version) ?? ''}, versão com ${total} falha(s) pública(s) registrada(s) na base NVD${exploited ? `, ${exploited} delas já usada(s) em ataques reais (catálogo CISA)` : ''}. ${str(ev.caveat) ?? ''}`;
+    }
+    case 'credential_leak':
+      return `${ev.accounts ?? '?'} e-mail(s) do domínio aparecem em vazamentos de dados públicos. Senhas desses vazamentos costumam ser reutilizadas em ataques de login.`;
   }
 }
 
@@ -263,6 +273,10 @@ function describeWebConfig(tool: string, ev: Evidence): string {
       if (ev.issue === 'no_https') return 'O site não tem HTTPS: tudo que o usuário envia (inclusive senhas) trafega sem criptografia.';
       if (ev.valid === false) return `O certificado HTTPS é inválido (${str(ev.error) ?? 'erro de verificação'}). O navegador mostra alerta de "site não seguro".`;
       return `O certificado HTTPS expira em ${ev.days_left ?? '?'} dia(s). Quando expirar, o site fica com alerta de "não seguro".`;
+    case 'dns-security': {
+      const issues = Array.isArray(ev.issues) ? ev.issues.join('; ') : '';
+      return `O DNS do domínio está sem proteções recomendadas${issues ? ` (${issues})` : ''}. Sem DNSSEC, respostas falsas podem desviar visitantes para um servidor falso.`;
+    }
     case 'email-security': {
       const issues = Array.isArray(ev.issues) ? ev.issues.join('; ') : '';
       return `Alguém pode conseguir enviar e-mails se passando por este domínio (phishing)${issues ? `: ${issues}` : ''}.`;
@@ -316,6 +330,7 @@ export function toDataset(domain: ApiDomain, scan: ApiScanJob, apiFindings: ApiF
     status: s.http_status != null ? 'active' : 'inactive',
     ip: s.ip_addresses?.[0],
     ports: (s.open_ports ?? []).map((p) => p.port),
+    waf: s.waf,
   }));
 
   const openPorts: OpenPort[] = scan.subdomains.flatMap((s) =>

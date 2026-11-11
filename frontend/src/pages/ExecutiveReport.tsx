@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { api, type ScanStatus } from '../lib/api';
-import { STAGES, toDataset } from '../lib/adapters';
+import { api, type ApiScanEvent } from '../lib/api';
+import { toDataset } from '../lib/adapters';
 import { businessImpact } from '../lib/businessImpact';
 import { CHECKS, evaluate, type CheckState } from '../components/SecurityChecklist';
 import type { Finding, ScanDataset, SeverityLevel } from '../types';
@@ -50,7 +50,7 @@ const CHECK_ICON: Record<CheckState, { icon: string; cls: string; label: string 
 
 export default function ExecutiveReport() {
   const { domainId, scanId } = useParams();
-  const [data, setData] = useState<{ dataset: ScanDataset; ran: Set<string> } | null>(null);
+  const [data, setData] = useState<{ dataset: ScanDataset; events: ApiScanEvent[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -63,10 +63,7 @@ export default function ExecutiveReport() {
       api.getEvents(sId).catch(() => []),
     ])
       .then(([domain, scan, findings, events]) => {
-        const ran = new Set(
-          STAGES.filter((st) => events.some((e) => st.statuses.includes(e.stage as ScanStatus))).map((st) => st.key),
-        );
-        setData({ dataset: toDataset(domain, scan, findings), ran });
+        setData({ dataset: toDataset(domain, scan, findings), events });
       })
       .catch((e) => setError((e as Error).message));
   }, [domainId, scanId]);
@@ -86,10 +83,11 @@ export default function ExecutiveReport() {
   if (error) return <Centered>Não foi possível carregar o relatório: {error}</Centered>;
   if (!data) return <Centered>Gerando relatório…</Centered>;
 
-  const { dataset, ran } = data;
+  const { dataset, events } = data;
   const grade = gradeOf(dataset.findings);
   const g = GRADES[grade];
-  const checks = CHECKS.map((c) => ({ c, ...evaluate(c, dataset.stages, dataset.findings, ran) }));
+  const ctx = { stages: dataset.stages, findings: dataset.findings, events, subdomains: dataset.subdomains };
+  const checks = CHECKS.map((c) => ({ c, ...evaluate(c, ctx) }));
   const tested = checks.filter((r) => r.state !== 'skipped');
   const passed = tested.filter((r) => r.state === 'pass').length;
   const issues = dataset.findings.filter(isIssue);

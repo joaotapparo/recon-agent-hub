@@ -330,6 +330,21 @@ números (`ScanHistory.tsx`).
 
 ## Auditoria Web e feed ao vivo
 
+Verificadores (todos em `app/services/web_audit/`): cabeçalhos e cookies
+(`headers.py`), CORS (`cors.py`), HTTPS/certificado (`tls.py`), WAF por
+assinatura passiva de cabeçalho/cookie, sem payload (`waf.py`, grava
+`Subdomain.waf`: `None` = não verificado, `""` = nenhum), versões expostas →
+CVEs no NVD (`cve_lookup.py`, categoria `VULNERABLE_COMPONENT`, cache 7 dias
+em `data/cve_cache`, `NVD_API_KEY` opcional acelera), SPF/DMARC
+(`email_security.py`), DNSSEC/CAA (`dns_security.py`) e vazamentos via
+HaveIBeenPwned (`breaches.py`, categoria `CREDENTIAL_LEAK`, só com
+`HIBP_API_KEY`; guarda contagens e e-mails mascarados, nunca a lista).
+O achado de CVE é **indicativo**: a evidência leva o aviso de backport
+(Ubuntu/Debian corrigem sem mudar a versão), e a IA tende a marcá-lo para
+revisão. Não remova esse aviso. Os itens do checklist adicionados depois
+dependem de um trecho de evento (`marker` em `SecurityChecklist.tsx`) para
+saber se o teste rodou; ao mudar essas mensagens no backend, ajuste o marker.
+
 `app/services/web_audit/` roda verificações **passivas**: no máximo dois GET
 por host (o segundo com `Origin` falso em `.invalid` para testar CORS), um
 handshake TLS e consultas TXT de DNS no domínio raiz. Tudo passa pelo
