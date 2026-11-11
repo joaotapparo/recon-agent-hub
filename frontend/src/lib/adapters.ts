@@ -60,6 +60,7 @@ export function toHistoryItem(d: ApiDomain): HistoryItem {
     domain: d.name,
     date: formatDate(d.created_at),
     status: toAnalysisStatus(d.latest_scan_status),
+    needsVerification: !d.verified,
   };
 }
 

@@ -75,6 +75,7 @@ export interface HistoryItem {
   domain: string;
   date: string;
   status: AnalysisStatus | 'pending';
+  needsVerification: boolean;
 }
 
 export interface AnalysisStage {

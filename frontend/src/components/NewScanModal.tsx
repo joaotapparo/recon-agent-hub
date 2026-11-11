@@ -1,11 +1,15 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
+import type { SubmitResponse, VerificationChallenge } from '../lib/api';
+import DomainVerification from './DomainVerification';
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
   /** rejeita com a mensagem de erro da API (formato inválido, anti-SSRF...) */
-  onStartScan: (domain: string, authorized: boolean) => Promise<void>;
+  onStartScan: (domain: string, authorized: boolean) => Promise<SubmitResponse>;
+  /** confere o TXT; rejeita com a mensagem da API se ainda não apareceu */
+  onVerify: (domainId: number) => Promise<void>;
 }
 
 // O backend sempre executa o pipeline completo; a lista é informativa.
@@ -13,23 +17,26 @@ const PIPELINE = [
   { label: 'Subdomínios', desc: 'subfinder' },
   { label: 'Hosts e portas', desc: 'httpx / nmap' },
   { label: 'Subdomain Takeover', desc: 'dnspython / fingerprints' },
+  { label: 'Auditoria web', desc: 'HTTPS, cabeçalhos, CORS, e-mail' },
   { label: 'JS e endpoints', desc: 'crawler + regex' },
   { label: 'Secrets', desc: 'gitleaks + regex' },
   { label: 'Arquivos sensíveis', desc: '.env, .git, config' },
   { label: 'Triagem com IA', desc: 'Gemini: veredito e severidade' },
 ];
 
-export default function NewScanModal({ isOpen, onClose, onStartScan }: Props) {
+export default function NewScanModal({ isOpen, onClose, onStartScan, onVerify }: Props) {
   const [domainInput, setDomainInput] = useState('');
   const [error, setError] = useState('');
   const [authorized, setAuthorized] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [pending, setPending] = useState<{ id: number; domain: string; challenge: VerificationChallenge } | null>(null);
 
   if (!isOpen) return null;
 
   const handleClose = () => {
     if (submitting) return;
     setError('');
+    setPending(null);
     onClose();
   };
 
@@ -57,10 +64,15 @@ export default function NewScanModal({ isOpen, onClose, onStartScan }: Props) {
 
     setSubmitting(true);
     try {
-      await onStartScan(clean, authorized);
+      const res = await onStartScan(clean, authorized);
       setDomainInput('');
       setAuthorized(false);
-      onClose();
+      if (res.verification) {
+        // domínio novo: segundo passo, provar posse por DNS
+        setPending({ id: res.domain_id, domain: clean, challenge: res.verification });
+      } else {
+        onClose();
+      }
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -112,6 +124,19 @@ export default function NewScanModal({ isOpen, onClose, onStartScan }: Props) {
           </button>
         </div>
 
+        {pending ? (
+          <div className="p-6">
+            <DomainVerification
+              domain={pending.domain}
+              challenge={pending.challenge}
+              onVerify={async () => {
+                await onVerify(pending.id);
+                setPending(null);
+                onClose();
+              }}
+            />
+          </div>
+        ) : (
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
           <div>
             <label className="block text-xs font-mono font-medium text-subtle uppercase tracking-wider mb-2">
@@ -202,6 +227,7 @@ export default function NewScanModal({ isOpen, onClose, onStartScan }: Props) {
             </button>
           </div>
         </form>
+        )}
       </div>
     </div>
   );

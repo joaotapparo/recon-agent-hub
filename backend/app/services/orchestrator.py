@@ -27,7 +27,7 @@ from app.models import (
     ScanStatus,
     Subdomain,
 )
-from app.services import ai_triage, js_scanner, web_audit
+from app.services import ai_triage, domain_verification, js_scanner, web_audit
 from app.services.recon.takeover_check import check_takeover
 from app.services.scan_events import emit, emit_list
 from app.tool_wrappers.httpx_cli import run_httpx
@@ -48,6 +48,9 @@ async def run_scan_job(scan_job_id: int) -> None:
         db.commit()
 
         domain_name = scan_job.domain.name
+        if not domain_verification.is_verified(scan_job.domain):
+            # defesa em profundidade: as rotas ja barram, mas um job antigo na fila nao
+            raise PermissionError(f"Dominio {domain_name} sem verificacao de posse valida")
 
         _set_status(db, scan_job, ScanStatus.ENUMERATING)
         emit(db, scan_job.id, "enumerating", f"Procurando subdomínios de {domain_name} em fontes públicas (subfinder)")

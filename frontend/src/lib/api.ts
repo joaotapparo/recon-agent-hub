@@ -26,11 +26,21 @@ export type FindingCategory =
 export type AIVerdict = 'pending' | 'true_positive' | 'false_positive' | 'needs_review';
 export type Severity = 'info' | 'low' | 'medium' | 'high' | 'critical';
 
+export interface VerificationChallenge {
+  record_name: string;
+  record_type: string;
+  record_value: string;
+}
+
 export interface ApiDomain {
   id: number;
   name: string;
   authorized: boolean;
   authorized_at: string | null;
+  verified: boolean;
+  verified_at: string | null;
+  /** presente enquanto o domínio não provou posse por DNS */
+  verification: VerificationChallenge | null;
   created_at: string;
   latest_scan_id: number | null;
   latest_scan_status: ScanStatus | null;
@@ -103,7 +113,9 @@ export interface ApiScanEvent {
 
 export interface SubmitResponse {
   domain_id: number;
-  scan_job_id: number;
+  /** null quando o domínio ainda precisa ser verificado por DNS */
+  scan_job_id: number | null;
+  verification: VerificationChallenge | null;
 }
 
 export class ApiError extends Error {
@@ -151,6 +163,9 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ name, authorization_confirmed: authorizationConfirmed }),
     }),
+
+  verifyDomain: (domainId: number) =>
+    request<SubmitResponse>(`/api/domains/${domainId}/verify`, { method: 'POST' }),
 
   rescan: (domainId: number) =>
     request<SubmitResponse>(`/api/domains/${domainId}/rescan`, { method: 'POST' }),

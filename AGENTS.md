@@ -22,7 +22,15 @@ e gera um relatório final num painel.
 ⚠️ **Restrição de segurança que atravessa o projeto todo**: só se pode
 escanear domínios com `Domain.authorized = True`, e a submissão passa por
 uma validação anti-SSRF (`app/core/ssrf_guard.py`) que bloqueia domínios
-que resolvem pra IP privado/loopback/link-local. Qualquer código novo que
+que resolvem pra IP privado/loopback/link-local.
+**Posse do domínio provada por DNS** (`app/services/domain_verification.py`):
+`POST /api/domains` de domínio não verificado responde 202 com um desafio TXT
+(`_recon-agent-hub.<domínio>` = `recon-agent-hub-verify=<token>`) e não cria
+scan; `POST /api/domains/{id}/verify` confere o registro e dispara o scan. A
+verificação vale `DOMAIN_VERIFICATION_VALID_DAYS` (30) e o rescan reconfere
+sozinho. Isentos: `VERIFICATION_EXEMPT_DOMAINS` (scanme.nmap.org e
+vulnweb.com, alvos públicos de teste). O orchestrator também recusa domínio
+não verificado (defesa em profundidade). Não crie caminho que pule isso. Qualquer código novo que
 toque em recon, scraping ou triagem deve respeitar isso.
 
 ## Arquitetura e convenções já estabelecidas

@@ -11,6 +11,7 @@ import NewScanModal from './components/NewScanModal';
 import LiveOperations from './components/LiveOperations';
 import AttackSurfaceMap from './components/AttackSurfaceMap';
 import SecurityChecklist from './components/SecurityChecklist';
+import DomainVerification from './components/DomainVerification';
 import { useScanEvents } from './hooks/useScanEvents';
 import { api, isRunning, type ApiDomain, type ScanStatus } from './lib/api';
 import { STAGES, toDataset, toHistoryItem } from './lib/adapters';
@@ -96,6 +97,14 @@ export default function App() {
     setDataset(null);
     setSelectedId(res.domain_id);
     await loadDomains();
+    return res;
+  };
+
+  const handleVerify = async (domainId: number) => {
+    await api.verifyDomain(domainId); // erro sobe para o painel de verificação
+    setDataset(null);
+    setSelectedId(domainId);
+    await loadDomains();
   };
 
   const handleRescan = async () => {
@@ -169,7 +178,19 @@ export default function App() {
               </Placeholder>
             )}
 
-            {selected && !showDataset && !datasetError && <Placeholder>Carregando análise…</Placeholder>}
+            {selected && scanId == null && selected.verification && (
+              <div className="bg-surface border border-border rounded-lg p-6 max-w-2xl mx-auto w-full">
+                <DomainVerification
+                  domain={selected.name}
+                  challenge={selected.verification}
+                  onVerify={() => handleVerify(selected.id)}
+                />
+              </div>
+            )}
+            {selected && scanId == null && !selected.verification && (
+              <Placeholder>Nenhuma análise para este domínio ainda.</Placeholder>
+            )}
+            {selected && scanId != null && !showDataset && !datasetError && <Placeholder>Carregando análise…</Placeholder>}
 
             {showDataset && (
               <>
@@ -217,6 +238,7 @@ export default function App() {
         isOpen={isNewScanOpen}
         onClose={() => setIsNewScanOpen(false)}
         onStartScan={handleStartScan}
+        onVerify={handleVerify}
       />
     </div>
   );
