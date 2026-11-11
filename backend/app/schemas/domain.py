@@ -23,6 +23,22 @@ class DomainSubmitResponse(BaseModel):
     verification: VerificationChallengeOut | None = None
 
 
+class ScanSummaryOut(BaseModel):
+    """Uma linha do historico de scans do dominio (comparacao antes/depois)."""
+
+    id: int
+    status: ScanStatus
+    created_at: datetime
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+    subdomains: int
+    active_hosts: int
+    open_ports: int
+    # achados que nao foram descartados como falso positivo
+    findings: int
+    by_severity: dict[str, int]
+
+
 class DomainOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

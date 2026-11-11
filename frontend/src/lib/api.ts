@@ -100,6 +100,19 @@ export interface ApiReport {
   generated_at: string;
 }
 
+export interface ApiScanSummary {
+  id: number;
+  status: ScanStatus;
+  created_at: string;
+  started_at: string | null;
+  finished_at: string | null;
+  subdomains: number;
+  active_hosts: number;
+  open_ports: number;
+  findings: number;
+  by_severity: Partial<Record<Severity | 'unrated', number>>;
+}
+
 export type EventKind = 'info' | 'found' | 'warn' | 'alert';
 
 /** Linha do feed ao vivo (GET /api/scans/{id}/events). */
@@ -169,6 +182,8 @@ export const api = {
 
   rescan: (domainId: number) =>
     request<SubmitResponse>(`/api/domains/${domainId}/rescan`, { method: 'POST' }),
+
+  listDomainScans: (domainId: number) => request<ApiScanSummary[]>(`/api/domains/${domainId}/scans`),
 
   getScan: (scanId: number) => request<ApiScanJob>(`/api/scans/${scanId}`),
 

@@ -300,8 +300,11 @@ Produção: `cd frontend && pnpm build` gera `frontend/dist`, e o próprio
 FastAPI serve o painel na mesma porta da API (`app/frontend.py`, rota
 catch-all registrada por último em `app/main.py`). Sem `dist`, só a API sobe.
 
-Pendente: histórico de scans anteriores de um mesmo domínio (a API ainda não
-lista scans por domínio; só o último fica acessível pela UI).
+Histórico: `GET /api/domains/{id}/scans` lista os scans do domínio com
+resumo (contagem por severidade, sem falsos positivos). O painel mostra a
+evolução em barras, permite abrir análises antigas e compara com a anterior
+(resolvidos/novos), casando achados por tipo + ferramenta + alvo + título sem
+números (`ScanHistory.tsx`).
 
 ## Tabela de rastreabilidade RF → código
 

@@ -13,7 +13,8 @@ import AttackSurfaceMap from './components/AttackSurfaceMap';
 import SecurityChecklist from './components/SecurityChecklist';
 import DomainVerification from './components/DomainVerification';
 import { useScanEvents } from './hooks/useScanEvents';
-import { api, isRunning, type ApiDomain, type ScanStatus } from './lib/api';
+import ScanHistory from './components/ScanHistory';
+import { api, isRunning, type ApiDomain, type ApiScanSummary, type ScanStatus } from './lib/api';
 import { STAGES, toDataset, toHistoryItem } from './lib/adapters';
 import type { ScanDataset } from './types';
 
@@ -51,8 +52,32 @@ export default function App() {
   }, [loadDomains, anyRunning]);
 
   const selected = domains?.find((d) => d.id === selectedId) ?? null;
-  const scanId = selected?.latest_scan_id ?? null;
-  const scanStatus = selected?.latest_scan_status ?? null;
+  const latestScanId = selected?.latest_scan_id ?? null;
+  const latestStatus = selected?.latest_scan_status ?? null;
+
+  // Histórico do domínio (antes/depois). Recarrega quando o último scan muda de status.
+  const [history, setHistory] = useState<ApiScanSummary[]>([]);
+  useEffect(() => {
+    if (selectedId == null || latestScanId == null) {
+      setHistory([]);
+      return;
+    }
+    let cancelled = false;
+    api
+      .listDomainScans(selectedId)
+      .then((h) => !cancelled && setHistory(h))
+      .catch(() => !cancelled && setHistory([]));
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedId, latestScanId, latestStatus]);
+
+  // Análise aberta: a mais recente, a menos que o usuário escolha outra no histórico.
+  const [viewScanId, setViewScanId] = useState<number | null>(null);
+  useEffect(() => setViewScanId(null), [selectedId, latestScanId]);
+  const scanId = viewScanId ?? latestScanId;
+  const scanStatus: ScanStatus | null =
+    viewScanId == null ? latestStatus : (history.find((h) => h.id === viewScanId)?.status ?? null);
 
   // Detalhe do scan selecionado (RF14/RF15). Recarrega quando o status muda
   // na lista e, enquanto roda, a cada POLL_RUNNING_MS.
@@ -92,6 +117,12 @@ export default function App() {
     setSelectedId(id);
   };
 
+  const handleViewScan = (id: number) => {
+    if (id === scanId) return;
+    setDataset(null);
+    setViewScanId(id === latestScanId ? null : id);
+  };
+
   const handleStartScan = async (domain: string, authorized: boolean) => {
     const res = await api.submitDomain(domain, authorized); // erros sobem para o modal
     setDataset(null);
@@ -121,7 +152,7 @@ export default function App() {
   };
 
   const historyList = (domains ?? []).map(toHistoryItem);
-  const showDataset = dataset && dataset.domainId === selectedId ? dataset : null;
+  const showDataset = dataset && dataset.domainId === selectedId && dataset.scanId === scanId ? dataset : null;
 
   const events = useScanEvents(scanId, isRunning(scanStatus));
   const ranStages = useMemo(
@@ -194,6 +225,14 @@ export default function App() {
 
             {showDataset && (
               <>
+                {viewScanId != null && (
+                  <div className="flex items-center justify-between gap-3 rounded-lg border border-med/30 bg-med/10 px-4 py-2.5 text-xs font-mono text-med">
+                    <span>Você está vendo uma análise anterior ({showDataset.date}).</span>
+                    <button onClick={() => handleViewScan(latestScanId!)} className="underline cursor-pointer hover:text-foreground">
+                      Voltar para a mais recente
+                    </button>
+                  </div>
+                )}
                 <SummaryCards stats={showDataset.stats} />
                 <AnalysisProgress stages={showDataset.stages} />
                 <LiveOperations
@@ -227,6 +266,14 @@ export default function App() {
                     sensitiveFilesList={showDataset.sensitiveFiles}
                   />
                 </div>
+                {history.length > 1 && (
+                  <ScanHistory
+                    history={history}
+                    currentScanId={showDataset.scanId}
+                    currentFindings={showDataset.findings}
+                    onSelect={handleViewScan}
+                  />
+                )}
                 <FinalReport dataset={showDataset} />
               </>
             )}

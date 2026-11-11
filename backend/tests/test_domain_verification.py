@@ -154,3 +154,30 @@ def test_orchestrator_refuses_unverified_domain(session_factory, monkeypatch):
     db.refresh(job)
     assert job.status.value == "failed"
     db.close()
+
+
+def test_domain_scan_history(client, session_factory):
+    from app.models import AIVerdict, Finding, FindingCategory, Severity, Subdomain
+
+    assert submit(client, "scanme.nmap.org").status_code == 201
+    assert submit(client, "scanme.nmap.org").status_code == 201
+    db = session_factory()
+    old, new = sorted(db.query(ScanJob).all(), key=lambda j: j.id)
+    db.add(Subdomain(scan_job_id=new.id, domain_id=new.domain_id, hostname="scanme.nmap.org",
+                     http_status=200, open_ports=[{"port": 80}, {"port": 22}]))
+    for verdict, sev in [(AIVerdict.TRUE_POSITIVE, Severity.HIGH), (AIVerdict.FALSE_POSITIVE, None),
+                         (AIVerdict.PENDING, None)]:
+        db.add(Finding(scan_job_id=new.id, domain_id=new.domain_id, category=FindingCategory.MISCONFIGURATION,
+                       source_tool="t", title="x", target="y", ai_verdict=verdict, ai_severity=sev))
+    db.commit()
+    domain_id, new_id, old_id = new.domain_id, new.id, old.id
+    db.close()
+
+    history = client.get(f"/api/domains/{domain_id}/scans").json()
+    assert [h["id"] for h in history] == [new_id, old_id]
+    assert history[0]["active_hosts"] == 1
+    assert history[0]["open_ports"] == 2
+    assert history[0]["findings"] == 2
+    assert history[0]["by_severity"] == {"high": 1, "unrated": 1}
+    assert history[1]["findings"] == 0
+    assert client.get("/api/domains/999/scans").status_code == 404

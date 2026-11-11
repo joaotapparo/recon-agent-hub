@@ -14,11 +14,12 @@ from sqlalchemy.orm import Session
 from app.core.domain_validation import InvalidDomainFormatError, assert_valid_domain_format
 from app.core.ssrf_guard import UnsafeDomainError, assert_domain_is_public
 from app.database import get_db
-from app.models import Domain, ScanJob
+from app.models import AIVerdict, Domain, ScanJob
 from app.schemas.domain import (
     DomainOut,
     DomainSubmit,
     DomainSubmitResponse,
+    ScanSummaryOut,
     VerificationChallengeOut,
 )
 from app.services import domain_verification
@@ -82,6 +83,14 @@ def get_domain(domain_id: int, db: Session = Depends(get_db)):
     return _to_domain_out(_get_or_404(db, domain_id))
 
 
+@router.get("/{domain_id}/scans", response_model=list[ScanSummaryOut])
+def list_domain_scans(domain_id: int, db: Session = Depends(get_db)):
+    """Historico do dominio, do scan mais recente para o mais antigo (RF16)."""
+    domain = _get_or_404(db, domain_id)
+    jobs = sorted(domain.scan_jobs, key=lambda j: (j.created_at, j.id), reverse=True)
+    return [_scan_summary(job) for job in jobs]
+
+
 @router.post("/{domain_id}/rescan", response_model=DomainSubmitResponse, status_code=201)
 def rescan_domain(domain_id: int, db: Session = Depends(get_db)):
     domain = _get_or_404(db, domain_id)
@@ -118,6 +127,26 @@ def _start_scan(db: Session, domain: Domain) -> int:
     db.refresh(scan_job)
     enqueue(scan_job.id)
     return scan_job.id
+
+
+def _scan_summary(job: ScanJob) -> ScanSummaryOut:
+    relevant = [f for f in job.findings if f.ai_verdict != AIVerdict.FALSE_POSITIVE]
+    by_severity: dict[str, int] = {}
+    for f in relevant:
+        key = f.ai_severity.value if f.ai_severity else "unrated"
+        by_severity[key] = by_severity.get(key, 0) + 1
+    return ScanSummaryOut(
+        id=job.id,
+        status=job.status,
+        created_at=job.created_at,
+        started_at=job.started_at,
+        finished_at=job.finished_at,
+        subdomains=len(job.subdomains),
+        active_hosts=sum(1 for s in job.subdomains if s.http_status is not None),
+        open_ports=sum(len(s.open_ports or []) for s in job.subdomains),
+        findings=len(relevant),
+        by_severity=by_severity,
+    )
 
 
 def _to_domain_out(domain: Domain) -> DomainOut:
