@@ -14,7 +14,17 @@ import SecurityChecklist from './components/SecurityChecklist';
 import DomainVerification from './components/DomainVerification';
 import { useScanEvents } from './hooks/useScanEvents';
 import ScanHistory from './components/ScanHistory';
-import { api, isRunning, type ApiDomain, type ApiScanSummary, type ScanStatus } from './lib/api';
+import ReplayBar from './components/ReplayBar';
+import { useReplay, type ReplaySource } from './hooks/useReplay';
+import {
+  api,
+  isRunning,
+  type ApiDomain,
+  type ApiFinding,
+  type ApiScanJob,
+  type ApiScanSummary,
+  type ScanStatus,
+} from './lib/api';
 import { STAGES, toDataset, toHistoryItem } from './lib/adapters';
 import type { ScanDataset } from './types';
 
@@ -27,6 +37,8 @@ export default function App() {
   const [domainsError, setDomainsError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [dataset, setDataset] = useState<ScanDataset | null>(null);
+  // respostas cruas do scan aberto, usadas pelo modo demonstração
+  const [raw, setRaw] = useState<{ scan: ApiScanJob; findings: ApiFinding[] } | null>(null);
   const [datasetError, setDatasetError] = useState<string | null>(null);
   const [isNewScanOpen, setIsNewScanOpen] = useState(false);
   const [rescanning, setRescanning] = useState(false);
@@ -94,6 +106,7 @@ export default function App() {
         const [scan, findings] = await Promise.all([api.getScan(scanId), api.getFindings(scanId)]);
         if (cancelled) return;
         setDataset(toDataset(domain, scan, findings));
+        setRaw({ scan, findings });
         setDatasetError(null);
       } catch (e) {
         if (!cancelled) setDatasetError((e as Error).message);
@@ -155,9 +168,28 @@ export default function App() {
   const showDataset = dataset && dataset.domainId === selectedId && dataset.scanId === scanId ? dataset : null;
 
   const events = useScanEvents(scanId, isRunning(scanStatus));
+
+  // Modo demonstração: só para análises concluídas, com o feed já carregado.
+  const replaySource = useMemo<ReplaySource | null>(
+    () =>
+      selected && showDataset?.status === 'completed' && raw && raw.scan.id === showDataset.scanId && events.length
+        ? { domain: selected, scan: raw.scan, findings: raw.findings, events }
+        : null,
+    // selected muda de referência a cada poll; o conteúdo relevante está em raw/events
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [raw, events, showDataset?.status, showDataset?.scanId],
+  );
+  const replay = useReplay(replaySource);
+  const shown = replay.view?.dataset ?? showDataset;
+  const shownEvents = replay.view?.events ?? events;
+  const shownStatus = (replay.view?.status ?? showDataset?.rawStatus) as ScanStatus;
+
   const ranStages = useMemo(
-    () => new Set(STAGES.filter((st) => events.some((e) => st.statuses.includes(e.stage as ScanStatus))).map((st) => st.key)),
-    [events],
+    () =>
+      new Set(
+        STAGES.filter((st) => shownEvents.some((e) => st.statuses.includes(e.stage as ScanStatus))).map((st) => st.key),
+      ),
+    [shownEvents],
   );
 
   return (
@@ -182,7 +214,7 @@ export default function App() {
           rescanning={rescanning}
           domain={showDataset?.domain ?? selected?.name}
           date={showDataset?.date}
-          status={showDataset?.status}
+          status={shown?.status}
         />
 
         <main className="flex-1 overflow-y-auto">
@@ -223,7 +255,7 @@ export default function App() {
             )}
             {selected && scanId != null && !showDataset && !datasetError && <Placeholder>Carregando análise…</Placeholder>}
 
-            {showDataset && (
+            {showDataset && shown && (
               <>
                 {viewScanId != null && (
                   <div className="flex items-center justify-between gap-3 rounded-lg border border-med/30 bg-med/10 px-4 py-2.5 text-xs font-mono text-med">
@@ -233,37 +265,51 @@ export default function App() {
                     </button>
                   </div>
                 )}
-                <SummaryCards stats={showDataset.stats} />
-                <AnalysisProgress stages={showDataset.stages} />
+                <SummaryCards stats={shown.stats} />
+                <AnalysisProgress stages={shown.stages} />
+                {showDataset.status === 'completed' && replay.available && (
+                  <ReplayBar
+                    active={replay.active}
+                    finished={replay.finished}
+                    paused={replay.paused}
+                    speed={replay.speed}
+                    progress={replay.progress}
+                    onStart={replay.start}
+                    onStop={replay.stop}
+                    onTogglePause={replay.togglePause}
+                    onSpeed={replay.setSpeed}
+                  />
+                )}
                 <LiveOperations
-                  scanId={showDataset.scanId}
-                  status={showDataset.rawStatus as ScanStatus}
-                  events={events}
+                  scanId={shown.scanId}
+                  status={shownStatus}
+                  events={shownEvents}
+                  replay={replay.active}
                 />
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                   <AttackSurfaceMap
-                    domain={showDataset.domain}
-                    subdomains={showDataset.subdomains}
-                    findings={showDataset.findings}
-                    running={showDataset.status === 'running'}
+                    domain={shown.domain}
+                    subdomains={shown.subdomains}
+                    findings={shown.findings}
+                    running={shown.status === 'running'}
                   />
                   <SecurityChecklist
-                    stages={showDataset.stages}
-                    findings={showDataset.findings}
+                    stages={shown.stages}
+                    findings={shown.findings}
                     ranStages={ranStages}
                   />
                 </div>
-                <SecurityFindings findingsList={showDataset.findings} />
+                <SecurityFindings findingsList={shown.findings} />
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                   <Infrastructure
-                    subdomainsList={showDataset.subdomains}
-                    openPortsList={showDataset.openPorts}
-                    takeoverRisksList={showDataset.takeoverRisks}
+                    subdomainsList={shown.subdomains}
+                    openPortsList={shown.openPorts}
+                    takeoverRisksList={shown.takeoverRisks}
                   />
                   <CodeFindings
-                    endpointsList={showDataset.endpoints}
-                    secretsList={showDataset.secrets}
-                    sensitiveFilesList={showDataset.sensitiveFiles}
+                    endpointsList={shown.endpoints}
+                    secretsList={shown.secrets}
+                    sensitiveFilesList={shown.sensitiveFiles}
                   />
                 </div>
                 {history.length > 1 && (

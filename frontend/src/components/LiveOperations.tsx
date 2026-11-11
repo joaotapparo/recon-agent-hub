@@ -111,7 +111,7 @@ function Typewriter({ text }: { text: string }) {
   return <>{text.slice(0, n)}</>;
 }
 
-function Terminal({ events, running, scanId }: { events: ApiScanEvent[]; running: boolean; scanId: number }) {
+function Terminal({ events, running, scanId, replay }: { events: ApiScanEvent[]; running: boolean; scanId: number; replay: boolean }) {
   const box = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
   const firstBatch = useRef<{ scanId: number; id: number } | null>(null);
@@ -121,7 +121,8 @@ function Terminal({ events, running, scanId }: { events: ApiScanEvent[]; running
   if (firstBatch.current == null && events.length) {
     firstBatch.current = { scanId, id: events[events.length - 1].id };
   }
-  const seenUpTo = firstBatch.current?.id ?? null;
+  // no replay todo evento é novo: ele começa vazio e vai chegando
+  const seenUpTo = replay ? 0 : (firstBatch.current?.id ?? null);
 
   useEffect(() => {
     const el = box.current;
@@ -134,6 +135,12 @@ function Terminal({ events, running, scanId }: { events: ApiScanEvent[]; running
   };
 
   const lastId = events[events.length - 1]?.id;
+  // escalona só as linhas que chegaram neste lote (desde o último render com eventos)
+  const batchStart = useRef(0);
+  const batchFrom = batchStart.current;
+  useEffect(() => {
+    if (lastId != null) batchStart.current = lastId;
+  }, [lastId]);
   let burst = 0;
 
   return (
@@ -145,7 +152,7 @@ function Terminal({ events, running, scanId }: { events: ApiScanEvent[]; running
         <span className="ml-2 text-[10px] font-mono text-muted">recon-agent@hub:~/scan/{scanId}</span>
         {running && (
           <span className="ml-auto flex items-center gap-1.5 text-[10px] font-mono text-ok">
-            <span className="w-1.5 h-1.5 rounded-full bg-ok animate-pulse" /> AO VIVO
+            <span className="w-1.5 h-1.5 rounded-full bg-ok animate-pulse" /> {replay ? "REPLAY" : "AO VIVO"}
           </span>
         )}
       </div>
@@ -159,7 +166,7 @@ function Terminal({ events, running, scanId }: { events: ApiScanEvent[]; running
         {events.map((e) => {
           const k = KIND[e.kind];
           const isNew = seenUpTo != null && e.id > seenUpTo;
-          const delay = isNew ? Math.min(burst++ * 70, 1400) : 0;
+          const delay = isNew && e.id > batchFrom ? Math.min(burst++ * 70, 1400) : 0;
           const isLast = e.id === lastId;
           return (
             <div
@@ -186,7 +193,7 @@ function Terminal({ events, running, scanId }: { events: ApiScanEvent[]; running
 
 // ── painel ────────────────────────────────────────────────────────────────
 
-function useElapsed(events: ApiScanEvent[], running: boolean): string | null {
+function useElapsed(events: ApiScanEvent[], running: boolean, replay: boolean): string | null {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     if (!running) return;
@@ -195,7 +202,8 @@ function useElapsed(events: ApiScanEvent[], running: boolean): string | null {
   }, [running]);
   if (!events.length) return null;
   const start = parseApiDate(events[0].created_at).getTime();
-  const end = running ? now : parseApiDate(events[events.length - 1].created_at).getTime();
+  // no replay o relógio segue os horários gravados, não o relógio de agora
+  const end = running && !replay ? now : parseApiDate(events[events.length - 1].created_at).getTime();
   const s = Math.max(0, Math.round((end - start) / 1000));
   return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
 }
@@ -204,13 +212,15 @@ interface Props {
   scanId: number;
   status: ScanStatus;
   events: ApiScanEvent[];
+  /** modo demonstração: eventos chegam de um scan já gravado */
+  replay?: boolean;
 }
 
-export default function LiveOperations({ scanId, status, events }: Props) {
+export default function LiveOperations({ scanId, status, events, replay = false }: Props) {
   const running = status !== 'completed' && status !== 'failed';
   const explainer = STATUS_EXPLAINER[status];
   const stage = STAGES.find((s) => s.statuses.includes(status));
-  const elapsed = useElapsed(events, running);
+  const elapsed = useElapsed(events, running, replay);
   const count = (k: EventKind) => events.filter((e) => e.kind === k).length;
 
   const counters = [
@@ -268,7 +278,7 @@ export default function LiveOperations({ scanId, status, events }: Props) {
               )}
             </div>
           </div>
-          <Terminal events={events} running={running} scanId={scanId} />
+          <Terminal events={events} running={running} scanId={scanId} replay={replay} />
         </div>
       </div>
     </section>
