@@ -1,8 +1,8 @@
 import type { AnalysisStage, Finding } from '../types';
 
-type CheckState = 'pass' | 'warn' | 'fail' | 'running' | 'pending' | 'skipped';
+export type CheckState = 'pass' | 'warn' | 'fail' | 'running' | 'pending' | 'skipped';
 
-interface CheckDef {
+export interface CheckDef {
   title: string;
   /** pergunta que o leigo entende */
   question: string;
@@ -12,7 +12,7 @@ interface CheckDef {
   alwaysSevere?: boolean;
 }
 
-const CHECKS: CheckDef[] = [
+export const CHECKS: CheckDef[] = [
   { title: 'Cadeado HTTPS', question: 'O site protege os dados com criptografia?', stage: 'web', match: (f) => f.sourceTool === 'tls-check' },
   { title: 'Proteções do navegador', question: 'O site pede ao navegador as defesas modernas?', stage: 'web', match: (f) => f.sourceTool === 'security-headers' },
   { title: 'Acesso entre sites (CORS)', question: 'Outro site consegue ler os dados dos usuários?', stage: 'web', match: (f) => f.sourceTool === 'cors-check' },
@@ -32,7 +32,7 @@ const STATE: Record<CheckState, { label: string; color: string; icon: string }> 
   skipped: { label: 'Não testado', color: 'text-muted border-border bg-surface-2', icon: '–' },
 };
 
-function evaluate(
+export function evaluate(
   check: CheckDef,
   stages: AnalysisStage[],
   findings: Finding[],

@@ -12,9 +12,13 @@ const SEV_COLORS: [string, string][] = [
   ['unrated', '#52525b'],
 ];
 
-/** Mesmo problema em scans diferentes: tipo + ferramenta + alvo, sem os números do título. */
+/**
+ * Mesmo problema em scans diferentes: tipo + ferramenta + alvo + título sem
+ * números e sem acentos (títulos antigos eram gravados sem acento).
+ */
 function findingKey(f: Finding): string {
-  return `${f.type}|${f.sourceTool}|${f.target}|${f.title.replace(/\d+/g, '#')}`;
+  const title = f.title.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\d+/g, '#').toLowerCase();
+  return `${f.type}|${f.sourceTool}|${f.target}|${title}`;
 }
 
 function isOpenIssue(f: Finding): boolean {

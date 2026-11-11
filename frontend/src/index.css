@@ -67,3 +67,9 @@ body {
   .animate-row-in, .animate-line-in, .animate-blink, .animate-shimmer, .animate-blip,
   .animate-ring, .animate-node-in, .animate-dash, .animate-glow, .animate-pop { animation: none !important; }
 }
+
+/* Impressão (relatório executivo): papel branco, sem o fundo escuro do painel */
+@media print {
+  @page { margin: 12mm; }
+  html, body, #root { background: #ffffff !important; height: auto; }
+}

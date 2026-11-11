@@ -85,7 +85,7 @@ async def audit_hosts(db: Session, scan_job: ScanJob, live_hosts: list[LiveHost]
         db.add(_finding(
             scan_job, None,
             source_tool="email-security",
-            title=f"Dominio {domain_name} permite e-mail falsificado (SPF/DMARC fraco)",
+            title=f"Domínio {domain_name} permite e-mail falsificado (SPF/DMARC fraco)",
             target=domain_name,
             evidence=email,
         ))
@@ -138,7 +138,7 @@ def _check_headers(scan_job: ScanJob, result: _HostResult, response: httpx.Respo
         result.findings.append(_finding(
             scan_job, host,
             source_tool="security-headers",
-            title=f"{len(names)} cabecalho(s) de seguranca ausente(s) em {host.hostname}",
+            title=f"{len(names)} cabeçalho(s) de segurança ausente(s) em {host.hostname}",
             target=host.url,
             evidence=report.missing_evidence(),
         ))
@@ -151,7 +151,7 @@ def _check_headers(scan_job: ScanJob, result: _HostResult, response: httpx.Respo
         result.findings.append(_finding(
             scan_job, host,
             source_tool="security-headers",
-            title=f"Versao de software exposta nos cabecalhos de {host.hostname}",
+            title=f"Versão de software exposta nos cabeçalhos de {host.hostname}",
             target=host.url,
             evidence=report.disclosure_evidence(),
         ))
@@ -167,7 +167,7 @@ def _check_cors(scan_job: ScanJob, result: _HostResult, response: httpx.Response
     result.findings.append(_finding(
         scan_job, host,
         source_tool="cors-check",
-        title=f"CORS permite origem arbitraria{creds} em {host.hostname}",
+        title=f"CORS permite origem arbitrária{creds} em {host.hostname}",
         target=host.url,
         evidence=issue,
     ))
@@ -180,7 +180,7 @@ async def _check_tls(scan_job: ScanJob, result: _HostResult) -> None:
         result.findings.append(_finding(
             scan_job, host,
             source_tool="tls-check",
-            title=f"{host.hostname} nao oferece HTTPS",
+            title=f"{host.hostname} não oferece HTTPS",
             target=host.url,
             evidence={"url": host.url, "issue": "no_https"},
         ))
@@ -194,7 +194,7 @@ async def _check_tls(scan_job: ScanJob, result: _HostResult) -> None:
         result.findings.append(_finding(
             scan_job, host,
             source_tool="tls-check",
-            title=f"Certificado TLS invalido em {host.hostname}",
+            title=f"Certificado TLS inválido em {host.hostname}",
             target=host.url,
             evidence=cert.evidence(),
         ))

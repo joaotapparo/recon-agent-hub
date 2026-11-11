@@ -183,6 +183,8 @@ export const api = {
   rescan: (domainId: number) =>
     request<SubmitResponse>(`/api/domains/${domainId}/rescan`, { method: 'POST' }),
 
+  getDomain: (domainId: number) => request<ApiDomain>(`/api/domains/${domainId}`),
+
   listDomainScans: (domainId: number) => request<ApiScanSummary[]>(`/api/domains/${domainId}/scans`),
 
   getScan: (scanId: number) => request<ApiScanJob>(`/api/scans/${scanId}`),

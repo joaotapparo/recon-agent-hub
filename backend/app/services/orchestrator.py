@@ -126,7 +126,7 @@ async def run_scan_job(scan_job_id: int) -> None:
                     subdomain_id=subdomain.id,
                     category=FindingCategory.SUBDOMAIN_TAKEOVER,
                     source_tool="dnspython+httpx",
-                    title=f"Possivel subdomain takeover em {subdomain.hostname}",
+                    title=f"Possível subdomain takeover em {subdomain.hostname}",
                     target=subdomain.hostname,
                     raw_evidence={"cname": takeover["cname"], "fingerprint": takeover["fingerprint"]},
                 ))
