@@ -1,12 +1,13 @@
-"""routers/reports.py - relatorio Markdown de um scan (RF13, issue #21)."""
+"""routers/reports.py - relatorio de um scan em Markdown e PDF (RF13, issues #21 e #32)."""
 
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import PlainTextResponse, Response
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import Report, ScanJob
 from app.schemas.scan import ReportOut
+from app.services.ai_triage.report_pdf import render_report_pdf
 
 router = APIRouter(prefix="/api/scans", tags=["reports"])
 
@@ -23,6 +24,15 @@ def get_report_markdown(scan_job_id: int, db: Session = Depends(get_db)):
         report.markdown_content,
         media_type="text/markdown; charset=utf-8",
         headers={"Content-Disposition": f'attachment; filename="relatorio-scan-{scan_job_id}.md"'},
+    )
+
+
+@router.get("/{scan_job_id}/report.pdf", response_class=Response)
+def get_report_pdf(scan_job_id: int, db: Session = Depends(get_db)):
+    return Response(
+        render_report_pdf(_load(db, scan_job_id)),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="relatorio-scan-{scan_job_id}.pdf"'},
     )
 
 

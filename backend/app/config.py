@@ -17,8 +17,18 @@ class Settings(BaseSettings):
     scans_dir: Path = DATA_DIR / "scans"
 
     ai_triage_provider: str = "gemini"
+    ai_triage_batch_size: int = Field(default=10, gt=0)
     gemini_api_key: str = ""
-    gemini_model: str = "gemini-3.6-flash"
+    # do melhor Flash gratuito pro mais barato: se um modelo cai ou fica sem cota, vai pro proximo
+    gemini_models: list[str] = Field(
+        default=[
+            "gemini-3.8-flash",
+            "gemini-3.6-flash",
+            "gemini-3.5-flash-lite",
+            "gemini-3.1-flash-lite",
+        ],
+        min_length=1,
+    )
     gemini_temperature: float = 1.0
     # com 30s o resumo deu timeout no teste real; com 60s e retry, concluiu.
     gemini_timeout_seconds: int = Field(default=60, gt=0)
@@ -37,7 +47,7 @@ class Settings(BaseSettings):
     sensitive_file_max_bytes: int = 64 * 1024
     max_concurrent_scans: int = 1
 
-    cors_origins: list[str] = ["http://localhost:3000"]
+    cors_origins: list[str] = ["http://localhost:3000", "http://localhost:5173"]
 
 
 settings = Settings()

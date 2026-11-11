@@ -23,4 +23,5 @@ class DomainOut(BaseModel):
     authorized: bool
     authorized_at: datetime | None = None
     created_at: datetime
+    latest_scan_id: int | None = None
     latest_scan_status: ScanStatus | None = None

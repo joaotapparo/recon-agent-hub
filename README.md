@@ -23,18 +23,41 @@ Requisitos: Python 3.11+ e [uv](https://docs.astral.sh/uv/).
 ```bash
 cd backend
 uv sync
-cp .env.example .env   # preencha GEMINI_API_KEY quando chegar na fase de triagem por IA
+cp .env.example .env   # preencha GEMINI_API_KEY, senão a triagem por IA não roda
 uv run alembic upgrade head
 uv run uvicorn app.main:app --reload
 ```
 
 API disponível em `http://localhost:8000`, docs interativas em `/docs`.
 
-### Triagem e relatório de IA — sprint 3
+### Triagem e relatório de IA
 
-O módulo de IA já faz triagem e gera um relatório Markdown salvo na tabela
-`reports`. Ainda não é chamado pelo pipeline: essa integração e o endpoint
-do relatório ficam nas issues #20 e #21, da sprint 4.
+O módulo de IA faz a triagem e gera um relatório Markdown salvo na tabela
+`reports`. Ele roda dentro do scan, depois do módulo Código Web (#20), e o
+relatório sai pela API em JSON, Markdown ou PDF (#21 e #32).
+
+A triagem vai em lotes: achados da mesma categoria seguem juntos, até
+`AI_TRIAGE_BATCH_SIZE` (padrão 10) por chamada. Cada resultado volta com o
+`finding_id`; achado que não voltar, vier repetido ou estiver num lote que
+falhou fica como `needs_review`. O tamanho do lote e o timeout ainda não foram
+calibrados com o Gemini real triando em lote.
+
+Os modelos seguem a ordem de `GEMINI_MODELS`, do melhor Flash gratuito para o
+mais barato. Se um modelo cai (5xx ou timeout, depois das tentativas), fica sem
+cota (429) ou foi descontinuado (404), o scan continua no próximo e não volta
+para ele até o fim daquele scan. Se todos caírem, os lotes seguintes vão direto
+para revisão, sem chamar o Gemini de novo. Erro de requisição ou de chave não
+troca de modelo, porque outro modelo falharia igual. O relatório grava em
+`ai_model_used` o modelo que escreveu a síntese. Para fixar um modelo só, use
+uma lista com um item, como `GEMINI_MODELS=["gemini-3.6-flash"]`.
+
+Sem `GEMINI_API_KEY`, o scan conclui, mas os achados vão para revisão com o
+motivo "Triagem por IA nao executada", e o relatório sai no modo básico.
+
+O PDF (`GET /api/scans/{id}/report.pdf`) é gerado na hora a partir do Markdown
+salvo, com `xhtml2pdf` e Jinja2. Não precisa instalar nada no sistema: o
+`uv sync` resolve no Mac, no Linux e no Windows. A renderização não busca URL
+nem lê arquivo local.
 
 As duas funções usam a sessão e o scan existentes, sempre de um domínio
 autorizado:
@@ -110,8 +133,6 @@ GEMINI_TIMEOUT_SECONDS=60 uv run python demo_ai_report.py --real --retry-summary
 ```
 
 O timeout padrão agora é de 60 segundos e continua configurável no `.env`.
-Os lotes da issue #17 foram adiados por decisão do usuário; não impedem essa
-entrega isolada da sprint 3.
 
 ### Ferramentas externas necessárias
 

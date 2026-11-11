@@ -15,7 +15,9 @@ class TriageResult:
 
 
 class AITriageProvider(Protocol):
-    async def triage(self, finding: Finding) -> TriageResult: ...
+    model: str
+
+    async def triage_batch(self, findings: list[Finding]) -> dict[int, TriageResult]: ...
 
     async def generate_report(
         self, domain: Domain, findings: list[Finding], *, language: str = "pt-BR"

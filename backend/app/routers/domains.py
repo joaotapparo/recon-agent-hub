@@ -92,5 +92,6 @@ def _to_domain_out(domain: Domain) -> DomainOut:
         authorized=domain.authorized,
         authorized_at=domain.authorized_at,
         created_at=domain.created_at,
+        latest_scan_id=latest.id if latest else None,
         latest_scan_status=latest.status if latest else None,
     )
