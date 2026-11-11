@@ -133,7 +133,13 @@ sistema e estar no `PATH` (ou apontadas via `.env`, ver `app/config.py`):
 | `nmap` | módulo Infraestrutura (RF03) | `sudo apt install nmap` |
 | `subfinder` | módulo Infraestrutura (RF02) | requer [Go](https://go.dev/doc/install) instalado, depois: `go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest` |
 | `httpx` (ProjectDiscovery) | módulo Infraestrutura (RF03) | requer Go, depois: `go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest` |
-| `gitleaks` | módulo Código Web (RF07, ainda não implementado) | `go install github.com/gitleaks/gitleaks/v8@latest` ou baixar binário em [releases](https://github.com/gitleaks/gitleaks/releases) |
+| `gitleaks` | módulo Código Web (RF07) | `go install github.com/gitleaks/gitleaks/v8@latest` ou baixar binário em [releases](https://github.com/gitleaks/gitleaks/releases) |
+
+No macOS, dá pra instalar tudo com Homebrew, sem Go:
+```bash
+brew install subfinder httpx nmap gitleaks
+# no backend/.env, use caminhos absolutos: /opt/homebrew/bin/subfinder, /opt/homebrew/bin/httpx etc.
+```
 
 Depois de instalar via `go install`, confirme que `$HOME/go/bin` está no seu
 `PATH` (senão os binários instalados não são encontrados):
@@ -161,12 +167,25 @@ echo "HTTPX_PATH=$HOME/go/bin/httpx" >> backend/.env
 
 ## Frontend
 
-Requisitos: Node.js 20+.
+Requisitos: Node.js 22+ e pnpm.
 
 ```bash
 cd frontend
-npm install
-npm run dev
+pnpm install
+pnpm dev
 ```
 
-Painel disponível em `http://localhost:3000`.
+Painel disponível em `http://localhost:5173`. O Vite repassa `/api` para
+`VITE_PROXY_TARGET` (padrão `http://localhost:8000`).
+
+## Rodar localmente (backend + painel)
+
+```bash
+scripts/dev.sh            # backend local na porta 8000 + painel na 5173
+scripts/dev.sh --backend  # só o backend
+scripts/dev.sh --remote   # só o painel, usando a API do servidor da AWS
+```
+
+O modo local usa `backend/.env` e `backend/data/recon.db`, separados do
+servidor. No `--remote`, o painel local lê e cria scans no servidor (mude o
+endereço com `REMOTE_API=http://IP:8000`). Ctrl+C encerra tudo.
