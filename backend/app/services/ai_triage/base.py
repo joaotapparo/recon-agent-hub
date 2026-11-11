@@ -15,6 +15,8 @@ class TriageResult:
 
 
 class AITriageProvider(Protocol):
+    model: str
+
     async def triage_batch(self, findings: list[Finding]) -> dict[int, TriageResult]: ...
 
     async def generate_report(

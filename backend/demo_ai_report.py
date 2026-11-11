@@ -166,10 +166,6 @@ def run_demo(output: Path, *, real: bool = False, retry_summary: bool = False) -
                         flush=True,
                     )
                 report = asyncio.run(_analyze(db, scan, retry_summary=retry_summary))
-            if not real:
-                report.ai_model_used = "mock"
-                db.commit()
-                db.refresh(report)
             report_id = report.id
 
         with Session(engine) as db:

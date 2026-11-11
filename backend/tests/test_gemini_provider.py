@@ -41,10 +41,18 @@ def test_rejeita_timeout_que_desativa_limite(seconds):
 def test_configuracao_padrao_do_gemini(monkeypatch):
     monkeypatch.delenv("GEMINI_TEMPERATURE", raising=False)
     monkeypatch.delenv("GEMINI_TIMEOUT_SECONDS", raising=False)
+    monkeypatch.delenv("GEMINI_MODELS", raising=False)
 
     config = Settings(_env_file=None)
     assert config.gemini_temperature == 1.0
     assert config.gemini_timeout_seconds == 60
+    assert config.gemini_models[0] == "gemini-3.8-flash"
+    assert all("flash" in model for model in config.gemini_models)
+
+
+def test_rejeita_lista_de_modelos_vazia():
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None, gemini_models=[])
 
 
 def test_encaminha_temperatura_ao_gemini(client, monkeypatch):
@@ -88,6 +96,72 @@ def test_nao_repete_erro_de_requisicao(client):
 
     assert client.aio.models.generate_content.await_count == 1
     gemini_provider.asyncio.sleep.assert_not_awaited()
+
+
+def _models_called(client) -> list[str]:
+    calls = client.aio.models.generate_content.call_args_list
+    return [call.kwargs["model"] for call in calls]
+
+
+@pytest.mark.parametrize("code", [429, 500, 503])
+def test_modelo_sem_cota_ou_fora_do_ar_passa_pro_proximo(client, code):
+    response = SimpleNamespace(text="resposta simulada")
+    error = APIError(code, {"message": "falha simulada"})
+    client.aio.models.generate_content.side_effect = [error, error, error, response]
+    provider = gemini_provider.GeminiTriageProvider(
+        api_key="fake-test-key", models=["flash-melhor", "flash-barato"]
+    )
+
+    assert asyncio.run(provider._generate_content("prompt de teste")) is response
+    assert provider.model == "flash-barato"
+    assert _models_called(client)[-1] == "flash-barato"
+
+
+def test_modelo_que_falhou_nao_e_chamado_de_novo_no_mesmo_scan(client):
+    response = SimpleNamespace(text="resposta simulada")
+    client.aio.models.generate_content.side_effect = [
+        APIError(404, {"message": "modelo descontinuado"}),
+        response,
+        response,
+    ]
+    provider = gemini_provider.GeminiTriageProvider(
+        api_key="fake-test-key", models=["flash-melhor", "flash-barato"]
+    )
+
+    asyncio.run(provider._generate_content("lote 1"))
+    asyncio.run(provider._generate_content("lote 2"))
+
+    assert _models_called(client) == ["flash-melhor", "flash-barato", "flash-barato"]
+
+
+def test_erro_de_requisicao_nao_troca_de_modelo(client):
+    client.aio.models.generate_content.side_effect = APIError(
+        400, {"message": "request invalido"}
+    )
+    provider = gemini_provider.GeminiTriageProvider(
+        api_key="fake-test-key", models=["flash-melhor", "flash-barato"]
+    )
+
+    with pytest.raises(APIError):
+        asyncio.run(provider._generate_content("prompt de teste"))
+
+    assert _models_called(client) == ["flash-melhor"]
+
+
+def test_todos_os_modelos_fora_do_ar_param_de_chamar_no_mesmo_scan(client):
+    client.aio.models.generate_content.side_effect = APIError(
+        503, {"message": "servico indisponivel"}
+    )
+    provider = gemini_provider.GeminiTriageProvider(
+        api_key="fake-test-key", models=["flash-melhor", "flash-barato"]
+    )
+
+    with pytest.raises(APIError):
+        asyncio.run(provider._generate_content("lote 1"))
+    with pytest.raises(RuntimeError):
+        asyncio.run(provider._generate_content("lote 2"))
+
+    assert _models_called(client) == ["flash-melhor"] * 3 + ["flash-barato"] * 3
 
 
 def test_provider_valida_json_e_encaminha_positivo_incompleto_para_revisao(client):

@@ -49,7 +49,8 @@ toque em recon, scraping ou triagem deve respeitar isso.
   e `app/main.py`). `settings.max_concurrent_scans` (default 1) limita
   quantos scans rodam ao mesmo tempo.
 - **IA**: Google Gemini (`google-genai`), não Anthropic/OpenAI — chave em
-  `settings.gemini_api_key` / `settings.gemini_model` (`app/config.py`).
+  `settings.gemini_api_key` e ordem dos modelos em `settings.gemini_models`
+  (`app/config.py`).
 - **Frontend**: Vite + React 19 + Tailwind 4 + `react-router-dom` +
   `react-markdown` (renderiza o relatório do backend). SPA, sem SSR e sem
   login. Gerenciador de pacotes **pnpm** (versão em `frontend/.mise.toml`).
@@ -88,7 +89,7 @@ toque em recon, scraping ou triagem deve respeitar isso.
 | Validação de formato + anti-SSRF (issue #9) | `app/core/domain_validation.py`, `app/core/ssrf_guard.py` | ✅ pronto — hardening extra (redirect/DNS rebinding) é a issue #26, ainda não feita |
 | **Módulo Infraestrutura** (RF02, RF03, RF04 — issues #2, #3, #4, #8) | `app/tool_wrappers/subfinder.py`, `httpx_cli.py`, `nmap.py`, `app/services/recon/takeover_check.py` | ✅ implementado, revisado e **testado em execução real** |
 | Fila de jobs + recuperação de órfãos (issues #6, #27) | `app/workers/job_runner.py` | ✅ pronto |
-| Orquestração do pipeline (issues #7, #20) | `app/services/orchestrator.py` | ✅ pronto — recon → scanning_js → triaging → report (triagem IA pulada com aviso se GEMINI_API_KEY ausente) |
+| Orquestração do pipeline (issues #7, #20) | `app/services/orchestrator.py` | ✅ pronto — recon → scanning_js → triaging → report (sem GEMINI_API_KEY, os achados vão para revisão com o motivo e o scan conclui) |
 | Endpoints de domínio/scan (RF01, RF15, RF16 — issues #9, #10) | `app/routers/domains.py`, `app/routers/scans.py`, `app/schemas/domain.py`, `app/schemas/scan.py` | ✅ pronto |
 | **Módulo Código Web** (RF05-RF09 — issues #11-#15, #31) | `app/services/js_scanner/{discovery,downloader,endpoint_extractor,secret_scanner,sensitive_files}.py` | ✅ implementado e integrado ao pipeline; testado com unit + integração (mock de rede) |
 | **Módulo Agente de IA** (RF10-RF13 — issues #16-#19, #32) | `app/services/ai_triage/` | ✅ triagem em lotes (#17), prompts e relatório Markdown/PDF (#32); integrado no pipeline (#20); endpoints (#21) feitos; avaliação RF17 (#29) ainda não implementada |
@@ -123,7 +124,7 @@ toque em recon, scraping ou triagem deve respeitar isso.
 ```bash
 cd backend
 uv sync
-cp .env.example .env   # preencher GEMINI_API_KEY quando for usar o módulo de IA
+cp .env.example .env   # preencher GEMINI_API_KEY, senão a triagem por IA não roda
 uv run alembic upgrade head
 uv run uvicorn app.main:app --reload
 ```
@@ -190,6 +191,15 @@ A triagem agrupa os achados pendentes por categoria, até
 volta com `finding_id`; achado ausente, repetido ou de um lote que falhou vira
 `NEEDS_REVIEW`, sem derrubar os outros lotes. O tamanho do lote e o timeout de
 60 segundos ainda não foram calibrados com o Gemini real triando em lote.
+`GeminiTriageProvider` percorre `settings.gemini_models` em ordem: depois dos
+retries, 5xx/408/429/timeout ou 404 tiram o modelo da fila até o fim do scan e
+passam para o próximo; erro de requisição ou de chave propaga sem trocar.
+Quando o último modelo também cai, as próximas chamadas daquele provider
+levantam `RuntimeError` na hora, e os lotes restantes vão para `NEEDS_REVIEW`.
+`provider.model` informa o modelo atual e vai para `Report.ai_model_used`.
+A ordem padrão (3.8 Flash → 3.6 Flash → 3.5 Flash-Lite → 3.1 Flash-Lite) segue
+os Flash gratuitos da página de preços do Gemini em 10/11/2026; nenhum deles
+além do 3.6 foi testado com chamada real.
 Os testes atuais verificam contratos e persistência com IA simulada, não a
 taxa de acerto do Gemini real (RF17, issue #29, ainda não implementada).
 Em 06/10/2026, `demo_ai_report.py --real` confirmou três triagens reais com
