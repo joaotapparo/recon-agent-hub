@@ -2,7 +2,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
 
-from app.models import AIVerdict, FindingCategory, ScanStatus, Severity
+from app.models import AIVerdict, EventKind, FindingCategory, ScanStatus, Severity
 
 
 class SubdomainOut(BaseModel):
@@ -65,3 +65,13 @@ class ScanJobOut(BaseModel):
     created_at: datetime
     subdomains: list[SubdomainOut] = []
     findings: list[FindingOut] = []
+
+
+class ScanEventOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    stage: str
+    kind: EventKind
+    message: str
+    created_at: datetime

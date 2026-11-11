@@ -45,6 +45,7 @@ export const typeLabel: Record<string, string> = {
   secret:         'Secret',
   endpoint:       'Endpoint',
   sensitive_file: 'Arquivo sensível',
+  web_config:     'Configuração web',
   takeover:       'Subdomain Takeover',
   open_port:      'Porta aberta',
 };

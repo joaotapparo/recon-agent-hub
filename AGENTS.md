@@ -93,6 +93,8 @@ toque em recon, scraping ou triagem deve respeitar isso.
 | **Módulo Código Web** (RF05-RF09 — issues #11-#15, #31) | `app/services/js_scanner/{discovery,downloader,endpoint_extractor,secret_scanner,sensitive_files}.py` | ✅ implementado e integrado ao pipeline; testado com unit + integração (mock de rede) |
 | **Módulo Agente de IA** (RF10-RF13 — issues #16-#19, #32) | `app/services/ai_triage/` | ✅ triagem em lotes (#17), prompts e relatório Markdown/PDF (#32); integrado no pipeline (#20); endpoints (#21) feitos; avaliação RF17 (#29) ainda não implementada |
 | Painel/frontend (issues #22-#25) | `frontend/src/` (`lib/api.ts`, `lib/adapters.ts`, `App.tsx`) | ✅ conectado à API real; testado com scan real |
+| **Auditoria Web** (cabeçalhos, CORS, TLS/HTTPS, SPF/DMARC) | `app/services/web_audit/` | ✅ etapa `web_audit` entre takeover e JS; achados `MISCONFIGURATION` + `PENDING` (IA dá a severidade), `source_tool` = `security-headers`/`cors-check`/`tls-check`/`email-security` |
+| Feed ao vivo do scan | `app/models/scan_event.py`, `app/services/scan_events.py`, `GET /api/scans/{id}/events?after_id=` | ✅ narração em linguagem simples, lida pelo painel (radar, terminal, mapa, checklist) |
 | `docker-compose` opcional (issue #30) | — | 🔲 não implementado, fase-5, não bloqueante |
 
 > **Branch de trabalho atual**: `dev-local`, com a infraestrutura e a base
@@ -264,8 +266,11 @@ API já disponível:
 - `GET /api/scans/{id}/report` — relatório gerado (JSON); `GET /api/scans/{id}/report.md` baixa o Markdown e `GET /api/scans/{id}/report.pdf` baixa o PDF (RF13).
 - `GET /api/scans/{id}` — status atual (`ScanStatus`: `pending`,
   `enumerating`, `probing`, `port_scanning`, `checking_takeover`,
-  `scanning_js`, `triaging`, `completed`, `failed`) + `subdomains` +
+  `web_audit`, `scanning_js`, `triaging`, `completed`, `failed`) + `subdomains` +
   `findings` quando disponíveis.
+- `GET /api/scans/{id}/events?after_id=N` — feed ao vivo (eventos com id > N),
+  usado no polling incremental do painel. Eventos são só narração: nada no
+  pipeline os lê, e falha ao gravá-los não derruba o scan.
 - `GET /api/domains` — lista de domínios com id e status do último scan
   (`latest_scan_id`, `latest_scan_status`) — RF16.
 - `GET /api/domains/{id}` — detalhe de um domínio.
@@ -311,3 +316,16 @@ lista scans por domínio; só o último fica acessível pela UI).
 | RF15 | Acompanhamento de status | `app/routers/scans.py` ✅ (API) / `frontend/src/App.tsx` ✅ (UI, polling) |
 | RF16 | Histórico no banco | `app/routers/domains.py::list_domains` ✅ |
 | RF17 | Casos de teste da IA | `backend/tests/` 🔲 |
+
+## Auditoria Web e feed ao vivo
+
+`app/services/web_audit/` roda verificações **passivas**: no máximo dois GET
+por host (o segundo com `Origin` falso em `.invalid` para testar CORS), um
+handshake TLS e consultas TXT de DNS no domínio raiz. Tudo passa pelo
+`HostGuard`/`ssrf_guard` e pelo `is_in_scope` do módulo Código Web. Não
+adicione aqui nada que explore falha ou envie payload. Os eventos do feed
+(`emit`/`emit_list` em `app/services/scan_events.py`) usam português com
+acento porque aparecem para leigos no painel; listas longas são cortadas
+(`emit_list(limit=...)`). No painel, scans concluídos sem eventos da etapa
+`web_audit` (anteriores a ela) mostram esses testes como "Não testado", e
+não como aprovados.

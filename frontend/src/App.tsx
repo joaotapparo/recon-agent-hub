@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import SummaryCards from './components/SummaryCards';
@@ -8,8 +8,12 @@ import Infrastructure from './components/Infrastructure';
 import CodeFindings from './components/CodeFindings';
 import FinalReport from './components/FinalReport';
 import NewScanModal from './components/NewScanModal';
-import { api, isRunning, type ApiDomain } from './lib/api';
-import { toDataset, toHistoryItem } from './lib/adapters';
+import LiveOperations from './components/LiveOperations';
+import AttackSurfaceMap from './components/AttackSurfaceMap';
+import SecurityChecklist from './components/SecurityChecklist';
+import { useScanEvents } from './hooks/useScanEvents';
+import { api, isRunning, type ApiDomain, type ScanStatus } from './lib/api';
+import { STAGES, toDataset, toHistoryItem } from './lib/adapters';
 import type { ScanDataset } from './types';
 
 const POLL_RUNNING_MS = 3000;
@@ -110,6 +114,12 @@ export default function App() {
   const historyList = (domains ?? []).map(toHistoryItem);
   const showDataset = dataset && dataset.domainId === selectedId ? dataset : null;
 
+  const events = useScanEvents(scanId, isRunning(scanStatus));
+  const ranStages = useMemo(
+    () => new Set(STAGES.filter((st) => events.some((e) => st.statuses.includes(e.stage as ScanStatus))).map((st) => st.key)),
+    [events],
+  );
+
   return (
     <div className="flex h-screen w-full bg-bg text-foreground overflow-hidden">
       <Sidebar
@@ -165,6 +175,24 @@ export default function App() {
               <>
                 <SummaryCards stats={showDataset.stats} />
                 <AnalysisProgress stages={showDataset.stages} />
+                <LiveOperations
+                  scanId={showDataset.scanId}
+                  status={showDataset.rawStatus as ScanStatus}
+                  events={events}
+                />
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  <AttackSurfaceMap
+                    domain={showDataset.domain}
+                    subdomains={showDataset.subdomains}
+                    findings={showDataset.findings}
+                    running={showDataset.status === 'running'}
+                  />
+                  <SecurityChecklist
+                    stages={showDataset.stages}
+                    findings={showDataset.findings}
+                    ranStages={ranStages}
+                  />
+                </div>
                 <SecurityFindings findingsList={showDataset.findings} />
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                   <Infrastructure

@@ -38,3 +38,32 @@ body {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.12); border-radius: 2px; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.25); }
+
+/* ── Animações do painel ao vivo ─────────────────────────────────────────── */
+
+@keyframes row-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+@keyframes line-in { from { opacity: 0; transform: translateX(-8px); } to { opacity: 1; transform: none; } }
+@keyframes blink { 50% { opacity: 0; } }
+@keyframes shimmer { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
+@keyframes blip { 0% { transform: scale(0); opacity: 0; } 30% { transform: scale(1.4); opacity: 1; } 100% { transform: scale(1); opacity: .85; } }
+@keyframes ring { from { transform: scale(.6); opacity: .7; } to { transform: scale(2.4); opacity: 0; } }
+@keyframes node-in { from { opacity: 0; transform: scale(.2); } to { opacity: 1; transform: scale(1); } }
+@keyframes dash-flow { to { stroke-dashoffset: -16; } }
+@keyframes glow { 0%, 100% { box-shadow: 0 0 0 0 rgba(255,255,255,.0); } 50% { box-shadow: 0 0 18px 2px rgba(255,255,255,.12); } }
+@keyframes pop { 0% { transform: scale(1); } 40% { transform: scale(1.18); } 100% { transform: scale(1); } }
+
+.animate-row-in { animation: row-in .45s ease-out both; }
+.animate-line-in { animation: line-in .35s ease-out both; }
+.animate-blink { animation: blink 1s step-end infinite; }
+.animate-shimmer { animation: shimmer 1.6s ease-in-out infinite; }
+.animate-blip { animation: blip .6s ease-out both; transform-box: fill-box; transform-origin: center; }
+.animate-ring { animation: ring 1.8s ease-out infinite; transform-box: fill-box; transform-origin: center; }
+.animate-node-in { animation: node-in .55s cubic-bezier(.34,1.56,.64,1) both; transform-box: fill-box; transform-origin: center; }
+.animate-dash { animation: dash-flow .8s linear infinite; }
+.animate-glow { animation: glow 2.2s ease-in-out infinite; }
+.animate-pop { animation: pop .5s ease-out; }
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-row-in, .animate-line-in, .animate-blink, .animate-shimmer, .animate-blip,
+  .animate-ring, .animate-node-in, .animate-dash, .animate-glow, .animate-pop { animation: none !important; }
+}

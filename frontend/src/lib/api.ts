@@ -10,6 +10,7 @@ export type ScanStatus =
   | 'probing'
   | 'port_scanning'
   | 'checking_takeover'
+  | 'web_audit'
   | 'scanning_js'
   | 'triaging'
   | 'completed'
@@ -89,6 +90,17 @@ export interface ApiReport {
   generated_at: string;
 }
 
+export type EventKind = 'info' | 'found' | 'warn' | 'alert';
+
+/** Linha do feed ao vivo (GET /api/scans/{id}/events). */
+export interface ApiScanEvent {
+  id: number;
+  stage: string;
+  kind: EventKind;
+  message: string;
+  created_at: string;
+}
+
 export interface SubmitResponse {
   domain_id: number;
   scan_job_id: number;
@@ -147,6 +159,9 @@ export const api = {
 
   getFindings: (scanId: number) => request<ApiFinding[]>(`/api/scans/${scanId}/findings`),
 
+  getEvents: (scanId: number, afterId = 0) =>
+    request<ApiScanEvent[]>(`/api/scans/${scanId}/events?after_id=${afterId}`),
+
   getReport: (scanId: number) => request<ApiReport>(`/api/scans/${scanId}/report`),
 
   reportMarkdownUrl: (scanId: number) => `${BASE_URL}/api/scans/${scanId}/report.md`,
@@ -159,6 +174,7 @@ export const RUNNING_STATUSES: ScanStatus[] = [
   'probing',
   'port_scanning',
   'checking_takeover',
+  'web_audit',
   'scanning_js',
   'triaging',
 ];
