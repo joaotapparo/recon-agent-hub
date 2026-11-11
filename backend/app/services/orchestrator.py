@@ -27,7 +27,7 @@ from app.models import (
     ScanStatus,
     Subdomain,
 )
-from app.services import ai_triage, domain_verification, js_scanner, web_audit
+from app.services import ai_triage, domain_verification, js_scanner, screenshots, web_audit
 from app.services.recon.takeover_check import check_takeover
 from app.services.scan_events import emit, emit_list
 from app.tool_wrappers.httpx_cli import run_httpx
@@ -146,6 +146,7 @@ async def run_scan_job(scan_job_id: int) -> None:
 
         _set_status(db, scan_job, ScanStatus.WEB_AUDIT)
         await web_audit.audit_hosts(db, scan_job, live_hosts)
+        await screenshots.capture_sites(db, scan_job, live_hosts)
 
         _set_status(db, scan_job, ScanStatus.SCANNING_JS)
         await js_scanner.scan_hosts(db, scan_job, live_hosts)

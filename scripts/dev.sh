@@ -25,7 +25,7 @@ cleanup() { for p in "${pids[@]}"; do kill "$p" 2>/dev/null || true; done; }
 trap cleanup EXIT INT TERM
 
 start_backend() {
-  (cd "$ROOT/backend" && uv sync -q && uv run alembic upgrade head \
+  (cd "$ROOT/backend" && uv sync -q --all-extras && uv run alembic upgrade head \
     && exec uv run uvicorn app.main:app --reload --port 8000) &
   pids+=($!)
 }

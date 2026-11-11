@@ -33,9 +33,11 @@ interface Props {
   subdomains: Subdomain[];
   findings: Finding[];
   running: boolean;
+  /** URL do print da página inicial, quando existir */
+  screenshotOf?: (host: string) => string | undefined;
 }
 
-export default function AttackSurfaceMap({ domain, subdomains, findings, running }: Props) {
+export default function AttackSurfaceMap({ domain, subdomains, findings, running, screenshotOf }: Props) {
   const [hover, setHover] = useState<string | null>(null);
 
   const nodes = useMemo(() => {
@@ -138,6 +140,13 @@ export default function AttackSurfaceMap({ domain, subdomains, findings, running
 
         {hovered && (
           <div className="absolute top-2 left-2 bg-surface-2 border border-border-2 rounded px-3 py-2 text-[11px] font-mono pointer-events-none max-w-[70%]">
+            {screenshotOf?.(hovered.sub.host) && (
+              <img
+                src={screenshotOf(hovered.sub.host)}
+                alt=""
+                className="w-56 aspect-[16/10] object-cover object-top rounded border border-border mb-1.5"
+              />
+            )}
             <p className="text-foreground break-all">{hovered.sub.host}</p>
             <p className="text-muted">
               {hovered.sub.ip ?? 'sem IP'} · {hovered.sub.ports.length ? `portas ${hovered.sub.ports.join(', ')}` : 'sem portas abertas'}

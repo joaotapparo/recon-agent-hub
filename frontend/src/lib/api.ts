@@ -194,6 +194,10 @@ export const api = {
   getEvents: (scanId: number, afterId = 0) =>
     request<ApiScanEvent[]>(`/api/scans/${scanId}/events?after_id=${afterId}`),
 
+  listScreenshots: (scanId: number) => request<string[]>(`/api/scans/${scanId}/screenshots`),
+  screenshotUrl: (scanId: number, hostname: string) =>
+    `${BASE_URL}/api/scans/${scanId}/screenshots/${encodeURIComponent(hostname)}.jpg`,
+
   getReport: (scanId: number) => request<ApiReport>(`/api/scans/${scanId}/report`),
 
   reportMarkdownUrl: (scanId: number) => `${BASE_URL}/api/scans/${scanId}/report.md`,

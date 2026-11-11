@@ -165,6 +165,16 @@ de ativar o ambiente do `uv`, geralmente `$HOME/go/bin/httpx`):
 echo "HTTPX_PATH=$HOME/go/bin/httpx" >> backend/.env
 ```
 
+### Prints dos sites (opcional)
+
+```bash
+cd backend
+uv sync --extra screenshots
+uv run playwright install chromium   # no Ubuntu: --with-deps chromium
+```
+
+Sem isso, o scan roda normalmente, só sem a galeria de prints.
+
 ## Frontend
 
 Requisitos: Node.js 22+ e pnpm.

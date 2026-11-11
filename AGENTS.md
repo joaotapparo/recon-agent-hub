@@ -340,3 +340,20 @@ acento porque aparecem para leigos no painel; listas longas são cortadas
 (`emit_list(limit=...)`). No painel, scans concluídos sem eventos da etapa
 `web_audit` (anteriores a ela) mostram esses testes como "Não testado", e
 não como aprovados.
+
+## Prints dos sites (opcional)
+
+`app/services/screenshots.py` fotografa a página inicial de até 20 sites
+ativos, na etapa `web_audit`, com Chromium headless do Playwright (extra
+opcional): `uv sync --extra screenshots` e `uv run playwright install
+chromium` (no Ubuntu do servidor: `uv run playwright install --with-deps
+chromium`, pede sudo). Sem isso, o feed mostra um aviso e o scan segue.
+`scripts/dev.sh` usa `uv sync --all-extras` para não remover o extra.
+
+⚠️ **Não troque `_guarded` por `route.continue_()`**: testado na prática, o
+Chromium segue redirecionamento sem passar de novo pelo interceptador, e um
+site poderia levar o navegador a um endereço interno (metadata da AWS). Toda
+requisição é feita por `route.fetch(max_redirects=0)`, salto a salto, com o
+host validado pelo `HostGuard`; `tests/test_screenshots.py` cobre isso com o
+Chromium real. Endpoints: `GET /api/scans/{id}/screenshots` e
+`GET /api/scans/{id}/screenshots/{hostname}.jpg`.

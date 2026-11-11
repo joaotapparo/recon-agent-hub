@@ -1,12 +1,14 @@
 """routers/scans.py - consulta de status de scan (RF15, issue #10)."""
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import ScanEvent, ScanJob
 from app.schemas.scan import ScanEventOut, ScanJobOut
+from app.services import screenshots
 
 router = APIRouter(prefix="/api/scans", tags=["scans"])
 
@@ -35,3 +37,20 @@ def list_scan_events(
         .order_by(ScanEvent.id)
         .limit(limit)
     ).all()
+
+
+@router.get("/{scan_job_id}/screenshots", response_model=list[str])
+def list_scan_screenshots(scan_job_id: int, db: Session = Depends(get_db)):
+    """Hostnames que tem print da pagina inicial neste scan."""
+    if db.get(ScanJob, scan_job_id) is None:
+        raise HTTPException(status_code=404, detail="Scan job not found")
+    return screenshots.list_screenshots(scan_job_id)
+
+
+@router.get("/{scan_job_id}/screenshots/{filename}")
+def get_scan_screenshot(scan_job_id: int, filename: str):
+    hostname = filename.removesuffix(".jpg")
+    path = screenshots.screenshot_path(scan_job_id, hostname) if filename.endswith(".jpg") else None
+    if path is None or not path.is_file():
+        raise HTTPException(status_code=404, detail="Screenshot not found")
+    return FileResponse(path, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=3600"})

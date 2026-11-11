@@ -15,6 +15,7 @@ import DomainVerification from './components/DomainVerification';
 import { useScanEvents } from './hooks/useScanEvents';
 import ScanHistory from './components/ScanHistory';
 import ReplayBar from './components/ReplayBar';
+import SiteGallery from './components/SiteGallery';
 import { useReplay, type ReplaySource } from './hooks/useReplay';
 import {
   api,
@@ -39,6 +40,7 @@ export default function App() {
   const [dataset, setDataset] = useState<ScanDataset | null>(null);
   // respostas cruas do scan aberto, usadas pelo modo demonstração
   const [raw, setRaw] = useState<{ scan: ApiScanJob; findings: ApiFinding[] } | null>(null);
+  const [shots, setShots] = useState<string[]>([]);
   const [datasetError, setDatasetError] = useState<string | null>(null);
   const [isNewScanOpen, setIsNewScanOpen] = useState(false);
   const [rescanning, setRescanning] = useState(false);
@@ -103,10 +105,15 @@ export default function App() {
 
     const load = async () => {
       try {
-        const [scan, findings] = await Promise.all([api.getScan(scanId), api.getFindings(scanId)]);
+        const [scan, findings, screenshots] = await Promise.all([
+          api.getScan(scanId),
+          api.getFindings(scanId),
+          api.listScreenshots(scanId).catch(() => [] as string[]),
+        ]);
         if (cancelled) return;
         setDataset(toDataset(domain, scan, findings));
         setRaw({ scan, findings });
+        setShots(screenshots);
         setDatasetError(null);
       } catch (e) {
         if (!cancelled) setDatasetError((e as Error).message);
@@ -183,6 +190,9 @@ export default function App() {
   const shown = replay.view?.dataset ?? showDataset;
   const shownEvents = replay.view?.events ?? events;
   const shownStatus = (replay.view?.status ?? showDataset?.rawStatus) as ScanStatus;
+  // no replay, os prints só aparecem depois da etapa em que foram tirados
+  const replayOrder: ScanStatus[] = ['scanning_js', 'triaging', 'completed'];
+  const shownShots = !replay.active || replayOrder.includes(shownStatus) ? shots : [];
 
   const ranStages = useMemo(
     () =>
@@ -292,6 +302,7 @@ export default function App() {
                     subdomains={shown.subdomains}
                     findings={shown.findings}
                     running={shown.status === 'running'}
+                    screenshotOf={(h) => (shownShots.includes(h) ? api.screenshotUrl(shown.scanId, h) : undefined)}
                   />
                   <SecurityChecklist
                     stages={shown.stages}
@@ -299,6 +310,12 @@ export default function App() {
                     ranStages={ranStages}
                   />
                 </div>
+                <SiteGallery
+                  scanId={shown.scanId}
+                  hosts={shownShots}
+                  subdomains={shown.subdomains}
+                  findings={shown.findings}
+                />
                 <SecurityFindings findingsList={shown.findings} />
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                   <Infrastructure
