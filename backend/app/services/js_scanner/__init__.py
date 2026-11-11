@@ -22,7 +22,7 @@ from urllib.parse import urlsplit
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.models import AIVerdict, Finding, FindingCategory, ScanJob, Severity
+from app.models import AIVerdict, EventKind, Finding, FindingCategory, ScanJob, Severity
 from app.services.js_scanner.discovery import discover_js_urls, is_in_scope
 from app.services.js_scanner.downloader import (
     HostGuard,
@@ -33,13 +33,19 @@ from app.services.js_scanner.downloader import (
 )
 from app.services.js_scanner.endpoint_extractor import extract_endpoints
 from app.services.js_scanner.secret_scanner import find_secrets
-from app.services.js_scanner.sensitive_files import ExposedFile, check_sensitive_files
+from app.services.js_scanner.sensitive_files import (
+    SENSITIVE_PATHS,
+    ExposedFile,
+    check_sensitive_files,
+)
+from app.services.scan_events import emit, emit_list
 
 logger = logging.getLogger(__name__)
 
 __all__ = ["LiveHost", "scan_hosts"]
 
 _TARGET_MAX = 512
+_STAGE = "scanning_js"
 
 
 @dataclass(frozen=True)
@@ -48,13 +54,16 @@ class LiveHost:
     hostname: str
     url: str  # URL final que o httpx sondou, ex.: https://app.exemplo.com
     body: str | None = None  # HTML capturado pelo httpx (-include-response)
+    tech: list[str] | None = None  # tecnologias detectadas pelo httpx, ex.: "PHP:7.4.3"
 
 
 async def scan_hosts(db: Session, scan_job: ScanJob, live_hosts: list[LiveHost]) -> None:
     if not live_hosts:
+        emit(db, scan_job.id, _STAGE, "Nenhum site ativo para analisar o código")
         return
     domain_name = scan_job.domain.name
     guard = HostGuard()
+    emit(db, scan_job.id, _STAGE, f"Lendo o código JavaScript de {len(live_hosts)} site(s)")
 
     async with build_client() as client:
         js_owner: dict[str, LiveHost] = {}
@@ -75,13 +84,25 @@ async def scan_hosts(db: Session, scan_job: ScanJob, live_hosts: list[LiveHost])
             )
         js_files = await download_js_files(client, guard, urls, scan_job.id)
         logger.info("scan %s: %d JS unicos baixados de %d URLs", scan_job.id, len(js_files), len(urls))
+        emit_list(db, scan_job.id, _STAGE, (f"Arquivo baixado: {_file_name(js_url=js.url)}" for js in js_files), limit=20)
+        emit(db, scan_job.id, _STAGE, f"{len(js_files)} arquivo(s) JavaScript baixado(s)", EventKind.FOUND)
 
+        endpoint_events = []
         for js in js_files:
             endpoints = extract_endpoints(js.content)
             if endpoints:
                 db.add(_endpoint_finding(scan_job, js_owner[js.url], js, endpoints))
+                endpoint_events.append(f"{len(endpoints)} rota(s) de API escondida(s) em {_file_name(js_url=js.url)}")
+        emit_list(db, scan_job.id, _STAGE, endpoint_events, EventKind.WARN)
 
-        for candidate in await find_secrets(js_files, scan_job.id):
+        emit(db, scan_job.id, _STAGE, "Procurando senhas e chaves de API esquecidas no código (gitleaks)")
+        secrets = await find_secrets(js_files, scan_job.id)
+        emit_list(db, scan_job.id, _STAGE, (
+            f"Possível segredo ({c.rule}) em {_file_name(js_url=c.file.url)}" for c in secrets
+        ), EventKind.ALERT)
+        if not secrets:
+            emit(db, scan_job.id, _STAGE, "Nenhum segredo encontrado no código", EventKind.FOUND)
+        for candidate in secrets:
             owner = js_owner[candidate.file.url]
             db.add(Finding(
                 scan_job_id=scan_job.id,
@@ -89,17 +110,24 @@ async def scan_hosts(db: Session, scan_job: ScanJob, live_hosts: list[LiveHost])
                 subdomain_id=owner.subdomain_id,
                 category=FindingCategory.EXPOSED_SECRET,
                 source_tool=candidate.detector,
-                title=f"Possivel secret ({candidate.rule}) em {_file_name(js_url=candidate.file.url)}",
+                title=f"Possível secret ({candidate.rule}) em {_file_name(js_url=candidate.file.url)}",
                 target=candidate.file.url[:_TARGET_MAX],
                 raw_evidence=candidate.evidence(),
                 ai_verdict=AIVerdict.PENDING,
             ))
         db.commit()
 
+        emit(db, scan_job.id, _STAGE,
+             f"Testando {len(SENSITIVE_PATHS)} arquivos que nunca deveriam estar públicos (.env, .git/config...)")
+        exposed_count = 0
         for host in live_hosts:
             for exposed in await check_sensitive_files(client, guard, _origin(host.url)):
+                exposed_count += 1
+                emit(db, scan_job.id, _STAGE, f"ARQUIVO EXPOSTO: {exposed.url}", EventKind.ALERT)
                 db.add(_exposed_file_finding(scan_job, host, exposed))
         db.commit()
+        if not exposed_count:
+            emit(db, scan_job.id, _STAGE, "Nenhum arquivo sensível exposto", EventKind.FOUND)
 
 
 def _endpoint_finding(scan_job: ScanJob, host: LiveHost, js: JsFile, endpoints: list[str]) -> Finding:
@@ -109,7 +137,7 @@ def _endpoint_finding(scan_job: ScanJob, host: LiveHost, js: JsFile, endpoints: 
         subdomain_id=host.subdomain_id,
         category=FindingCategory.EXPOSED_ENDPOINT,
         source_tool="endpoint-regex",
-        title=f"{len(endpoints)} endpoint(s) extraido(s) de {_file_name(js_url=js.url)}",
+        title=f"{len(endpoints)} endpoint(s) extraído(s) de {_file_name(js_url=js.url)}",
         target=js.url[:_TARGET_MAX],
         raw_evidence={"js_url": js.url, "js_sha256": js.sha256, "endpoints": endpoints},
         ai_verdict=AIVerdict.PENDING,
@@ -124,7 +152,7 @@ def _exposed_file_finding(scan_job: ScanJob, host: LiveHost, exposed: ExposedFil
         subdomain_id=host.subdomain_id,
         category=FindingCategory.MISCONFIGURATION,
         source_tool="sensitive-files",
-        title=f"Arquivo sensivel exposto: {exposed.path} em {host.hostname}",
+        title=f"Arquivo sensível exposto: {exposed.path} em {host.hostname}",
         target=exposed.url[:_TARGET_MAX],
         raw_evidence=exposed.evidence(),
         ai_verdict=AIVerdict.TRUE_POSITIVE,

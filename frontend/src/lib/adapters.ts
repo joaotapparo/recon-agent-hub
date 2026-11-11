@@ -26,11 +26,12 @@ import type {
   SeverityLevel,
   Subdomain,
   TakeoverRisk,
+  WebConfigIssue,
 } from '../types';
 
 // O backend grava datetime em UTC sem sufixo de fuso; sem o "Z" o browser
 // interpretaria como horário local.
-function parseApiDate(value: string): Date {
+export function parseApiDate(value: string): Date {
   return new Date(/[zZ]|[+-]\d\d:?\d\d$/.test(value) ? value : `${value}Z`);
 }
 
@@ -59,37 +60,126 @@ export function toHistoryItem(d: ApiDomain): HistoryItem {
     domain: d.name,
     date: formatDate(d.created_at),
     status: toAnalysisStatus(d.latest_scan_status),
+    needsVerification: !d.verified,
   };
 }
 
 // ── Etapas do pipeline ────────────────────────────────────────────────────
 
-const STAGES: { name: string; statuses: ScanStatus[] }[] = [
-  { name: 'Reconhecimento', statuses: ['enumerating', 'probing'] },
-  { name: 'Infraestrutura', statuses: ['port_scanning', 'checking_takeover'] },
-  { name: 'JavaScript', statuses: ['scanning_js'] },
-  { name: 'IA e relatório', statuses: ['triaging'] },
+type StageDef = Omit<AnalysisStage, 'status' | 'progress'> & { statuses: ScanStatus[] };
+
+export const STAGES: StageDef[] = [
+  {
+    key: 'recon',
+    name: 'Reconhecimento',
+    tool: 'subfinder + httpx',
+    description: 'Descobre todos os endereços ligados ao domínio e quais deles estão no ar.',
+    statuses: ['enumerating', 'probing'],
+  },
+  {
+    key: 'infra',
+    name: 'Infraestrutura',
+    tool: 'nmap + DNS',
+    description: 'Testa quais "portas" dos servidores estão abertas e se algum endereço foi abandonado.',
+    statuses: ['port_scanning', 'checking_takeover'],
+  },
+  {
+    key: 'web',
+    name: 'Auditoria web',
+    tool: 'headers, TLS, CORS, SPF/DMARC',
+    description: 'Confere o cadeado (HTTPS), as proteções do navegador e se dá para falsificar e-mails.',
+    statuses: ['web_audit'],
+  },
+  {
+    key: 'js',
+    name: 'Código JavaScript',
+    tool: 'gitleaks + regex',
+    description: 'Lê o código do site em busca de senhas, chaves e arquivos que não deveriam estar públicos.',
+    statuses: ['scanning_js'],
+  },
+  {
+    key: 'ai',
+    name: 'IA e relatório',
+    tool: 'Gemini',
+    description: 'A IA separa o que é risco real do que é alarme falso e escreve o relatório.',
+    statuses: ['triaging'],
+  },
 ];
+
+/** Explicação da etapa exata em andamento (sub-etapas do recon/infra). */
+export const STATUS_EXPLAINER: Partial<Record<ScanStatus, { title: string; text: string }>> = {
+  pending: { title: 'Na fila', text: 'A análise vai começar assim que o servidor estiver livre.' },
+  enumerating: {
+    title: 'Mapeando endereços',
+    text: 'Consultando fontes públicas (certificados, buscadores, DNS) para listar todos os subdomínios. É como levantar a planta de todos os prédios de uma empresa.',
+  },
+  probing: {
+    title: 'Batendo nas portas',
+    text: 'Visitando cada endereço para ver quais sites estão realmente no ar e que tecnologia usam.',
+  },
+  port_scanning: {
+    title: 'Testando portas',
+    text: 'Verificando quais serviços cada servidor deixa expostos na internet, como checar quais janelas de um prédio estão destrancadas.',
+  },
+  checking_takeover: {
+    title: 'Procurando endereços abandonados',
+    text: 'Um subdomínio que aponta para um serviço desativado pode ser "sequestrado" por um atacante para hospedar conteúdo falso.',
+  },
+  web_audit: {
+    title: 'Auditando a configuração',
+    text: 'Conferindo o cadeado HTTPS, as proteções que o site pede ao navegador e se alguém consegue mandar e-mail em nome da empresa.',
+  },
+  scanning_js: {
+    title: 'Lendo o código do site',
+    text: 'Baixando o JavaScript público e procurando senhas, chaves de API e rotas internas esquecidas pelos desenvolvedores.',
+  },
+  triaging: {
+    title: 'IA analisando',
+    text: 'A inteligência artificial revisa cada achado, descarta alarmes falsos e estima a gravidade dos riscos reais.',
+  },
+  completed: { title: 'Análise concluída', text: 'Todos os testes terminaram. Veja abaixo o que foi encontrado.' },
+  failed: { title: 'A análise falhou', text: 'Algo impediu a análise de terminar. Veja a mensagem de erro acima.' },
+};
+
+function stage(def: StageDef, status: AnalysisStage['status'], progress: number): AnalysisStage {
+  const { statuses: _statuses, ...rest } = def;
+  return { ...rest, status, progress };
+}
 
 export function toStages(status: ScanStatus): AnalysisStage[] {
   if (status === 'completed') {
-    return STAGES.map((s) => ({ name: s.name, status: 'completed', progress: 100 }));
+    return STAGES.map((s) => stage(s, 'completed', 100));
   }
   if (status === 'pending' || status === 'failed') {
     // Em falha, a API não diz em qual etapa parou; o erro aparece no cabeçalho.
-    return STAGES.map((s) => ({ name: s.name, status: 'pending', progress: 0 }));
+    return STAGES.map((s) => stage(s, 'pending', 0));
   }
   const current = STAGES.findIndex((s) => s.statuses.includes(status));
   return STAGES.map((s, i) => {
-    if (i < current) return { name: s.name, status: 'completed', progress: 100 };
-    if (i > current) return { name: s.name, status: 'pending', progress: 0 };
+    if (i < current) return stage(s, 'completed', 100);
+    if (i > current) return stage(s, 'pending', 0);
     const step = s.statuses.indexOf(status);
-    const progress = Math.round(((step + 0.5) / s.statuses.length) * 100);
-    return { name: s.name, status: 'running', progress };
+    return stage(s, 'running', Math.round(((step + 0.5) / s.statuses.length) * 100));
   });
 }
 
 // ── Achados ───────────────────────────────────────────────────────────────
+
+// Ferramentas da Auditoria Web também gravam como misconfiguration.
+const WEB_CONFIG_TOOLS = new Set(['security-headers', 'cors-check', 'tls-check', 'email-security', 'dns-security']);
+
+const WEB_CHECK_LABEL: Record<string, string> = {
+  'security-headers': 'Cabeçalhos',
+  'cors-check': 'CORS',
+  'tls-check': 'HTTPS / TLS',
+  'email-security': 'E-mail (SPF/DMARC)',
+  'dns-security': 'DNS (DNSSEC/CAA)',
+};
+
+function findingType(f: ApiFinding): FindingType {
+  if (f.category === 'misconfiguration' && WEB_CONFIG_TOOLS.has(f.source_tool)) return 'web_config';
+  return TYPE_BY_CATEGORY[f.category];
+}
 
 const TYPE_BY_CATEGORY: Record<FindingCategory, FindingType> = {
   exposed_secret: 'secret',
@@ -97,6 +187,8 @@ const TYPE_BY_CATEGORY: Record<FindingCategory, FindingType> = {
   misconfiguration: 'sensitive_file',
   subdomain_takeover: 'takeover',
   open_port: 'open_port',
+  vulnerable_component: 'vulnerable_component',
+  credential_leak: 'credential_leak',
 };
 
 const STATUS_BY_VERDICT: Record<AIVerdict, FindingStatus> = {
@@ -148,11 +240,49 @@ function describe(f: ApiFinding, ev: Evidence): string {
       return `${n} rota(s) referenciada(s) no JavaScript da aplicação. Podem revelar APIs internas ou não documentadas.`;
     }
     case 'misconfiguration':
+      if (WEB_CONFIG_TOOLS.has(f.source_tool)) return describeWebConfig(f.source_tool, ev);
       return `${str(ev.description) ?? 'Arquivo sensível'} acessível publicamente (HTTP ${ev.status_code ?? '?'}).`;
     case 'subdomain_takeover':
       return `O subdomínio aponta (CNAME ${str(ev.cname) ?? '?'}) para um serviço que parece não estar mais provisionado.`;
     case 'open_port':
       return 'Portas TCP abertas detectadas pelo nmap.';
+    case 'vulnerable_component': {
+      const total = typeof ev.total_cves === 'number' ? ev.total_cves : '?';
+      const exploited = Array.isArray(ev.known_exploited) ? ev.known_exploited.length : 0;
+      return `O servidor informa usar ${str(ev.component) ?? 'um software'} ${str(ev.version) ?? ''}, versão com ${total} falha(s) pública(s) registrada(s) na base NVD${exploited ? `, ${exploited} delas já usada(s) em ataques reais (catálogo CISA)` : ''}. ${str(ev.caveat) ?? ''}`;
+    }
+    case 'credential_leak':
+      return `${ev.accounts ?? '?'} e-mail(s) do domínio aparecem em vazamentos de dados públicos. Senhas desses vazamentos costumam ser reutilizadas em ataques de login.`;
+  }
+}
+
+function describeWebConfig(tool: string, ev: Evidence): string {
+  switch (tool) {
+    case 'security-headers': {
+      if (ev.disclosed_headers) {
+        return 'O servidor informa o nome e a versão exata do software que usa, o que facilita para um atacante procurar falhas conhecidas daquela versão.';
+      }
+      const missing = Array.isArray(ev.missing_headers)
+        ? ev.missing_headers.map((h) => (h as { name?: string }).name).filter(Boolean).join(', ')
+        : '';
+      return `O site não pede ao navegador proteções importantes${missing ? ` (${missing})` : ''}. Elas dificultam ataques como roubo de sessão, clickjacking e injeção de scripts.`;
+    }
+    case 'cors-check':
+      return 'O servidor aceita que qualquer outro site leia suas respostas. Uma página maliciosa poderia ler dados de um usuário logado.';
+    case 'tls-check':
+      if (ev.issue === 'no_https') return 'O site não tem HTTPS: tudo que o usuário envia (inclusive senhas) trafega sem criptografia.';
+      if (ev.valid === false) return `O certificado HTTPS é inválido (${str(ev.error) ?? 'erro de verificação'}). O navegador mostra alerta de "site não seguro".`;
+      return `O certificado HTTPS expira em ${ev.days_left ?? '?'} dia(s). Quando expirar, o site fica com alerta de "não seguro".`;
+    case 'dns-security': {
+      const issues = Array.isArray(ev.issues) ? ev.issues.join('; ') : '';
+      return `O DNS do domínio está sem proteções recomendadas${issues ? ` (${issues})` : ''}. Sem DNSSEC, respostas falsas podem desviar visitantes para um servidor falso.`;
+    }
+    case 'email-security': {
+      const issues = Array.isArray(ev.issues) ? ev.issues.join('; ') : '';
+      return `Alguém pode conseguir enviar e-mails se passando por este domínio (phishing)${issues ? `: ${issues}` : ''}.`;
+    }
+    default:
+      return 'Configuração de segurança fraca.';
   }
 }
 
@@ -172,7 +302,8 @@ export function toFinding(f: ApiFinding): Finding {
   return {
     id: String(f.id),
     severity: toSeverity(f.ai_severity),
-    type: TYPE_BY_CATEGORY[f.category],
+    type: findingType(f),
+    sourceTool: f.source_tool,
     title: f.title,
     target: f.target,
     file: fileName(jsUrl),
@@ -199,6 +330,7 @@ export function toDataset(domain: ApiDomain, scan: ApiScanJob, apiFindings: ApiF
     status: s.http_status != null ? 'active' : 'inactive',
     ip: s.ip_addresses?.[0],
     ports: (s.open_ports ?? []).map((p) => p.port),
+    waf: s.waf,
   }));
 
   const openPorts: OpenPort[] = scan.subdomains.flatMap((s) =>
@@ -249,7 +381,7 @@ export function toDataset(domain: ApiDomain, scan: ApiScanJob, apiFindings: ApiF
     });
 
   const sensitiveFiles: SensitiveFile[] = apiFindings
-    .filter((f) => f.category === 'misconfiguration')
+    .filter((f) => findingType(f) === 'sensitive_file')
     .map((f) => {
       const ev = evidenceObject(f.raw_evidence);
       const url = str(ev.url) ?? f.target;
@@ -260,6 +392,16 @@ export function toDataset(domain: ApiDomain, scan: ApiScanJob, apiFindings: ApiF
         severity: toSeverity(f.ai_severity),
       };
     });
+
+  const webConfig: WebConfigIssue[] = apiFindings
+    .filter((f) => findingType(f) === 'web_config')
+    .map((f) => ({
+      host: f.source_tool === 'email-security' ? f.target : hostOf(f.target),
+      check: WEB_CHECK_LABEL[f.source_tool] ?? f.source_tool,
+      title: f.title,
+      status: STATUS_BY_VERDICT[f.ai_verdict],
+      severity: toSeverity(f.ai_severity),
+    }));
 
   // falsos positivos não contam como achados nos números de resumo
   const relevant = findings.filter((f) => f.status !== 'false_positive');
@@ -292,6 +434,8 @@ export function toDataset(domain: ApiDomain, scan: ApiScanJob, apiFindings: ApiF
     endpoints,
     secrets,
     sensitiveFiles,
+    webConfig,
+    rawStatus: scan.status,
   };
 }
 

@@ -18,6 +18,8 @@ class FindingCategory(str, enum.Enum):
     EXPOSED_SECRET = "exposed_secret"
     EXPOSED_ENDPOINT = "exposed_endpoint"
     MISCONFIGURATION = "misconfiguration"
+    VULNERABLE_COMPONENT = "vulnerable_component"
+    CREDENTIAL_LEAK = "credential_leak"
 
 
 class AIVerdict(str, enum.Enum):

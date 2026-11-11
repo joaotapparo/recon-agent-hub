@@ -38,6 +38,18 @@ class Settings(BaseSettings):
     sensitive_file_max_bytes: int = 64 * 1024
     max_concurrent_scans: int = 1
 
+    # Posse do dominio provada por registro TXT antes de qualquer scan.
+    domain_verification_required: bool = True
+    domain_verification_valid_days: int = Field(default=30, gt=0)
+    # Alvos publicos mantidos pelos proprios donos para testar scanners:
+    # scanme.nmap.org (projeto nmap) e *.vulnweb.com (Acunetix).
+    verification_exempt_domains: list[str] = ["scanme.nmap.org", "vulnweb.com"]
+
+    # Opcionais da Auditoria Web: sem chave o NVD funciona mais devagar
+    # (5 consultas/30s); sem HIBP_API_KEY a consulta de vazamentos e pulada.
+    nvd_api_key: str = ""
+    hibp_api_key: str = ""
+
     cors_origins: list[str] = ["http://localhost:3000", "http://localhost:5173"]
 
 

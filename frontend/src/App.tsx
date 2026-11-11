@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import SummaryCards from './components/SummaryCards';
@@ -8,7 +8,24 @@ import Infrastructure from './components/Infrastructure';
 import CodeFindings from './components/CodeFindings';
 import FinalReport from './components/FinalReport';
 import NewScanModal from './components/NewScanModal';
-import { api, isRunning, type ApiDomain } from './lib/api';
+import LiveOperations from './components/LiveOperations';
+import AttackSurfaceMap from './components/AttackSurfaceMap';
+import SecurityChecklist from './components/SecurityChecklist';
+import DomainVerification from './components/DomainVerification';
+import { useScanEvents } from './hooks/useScanEvents';
+import ScanHistory from './components/ScanHistory';
+import ReplayBar from './components/ReplayBar';
+import SiteGallery from './components/SiteGallery';
+import { useReplay, type ReplaySource } from './hooks/useReplay';
+import {
+  api,
+  isRunning,
+  type ApiDomain,
+  type ApiFinding,
+  type ApiScanJob,
+  type ApiScanSummary,
+  type ScanStatus,
+} from './lib/api';
 import { toDataset, toHistoryItem } from './lib/adapters';
 import type { ScanDataset } from './types';
 
@@ -21,6 +38,9 @@ export default function App() {
   const [domainsError, setDomainsError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [dataset, setDataset] = useState<ScanDataset | null>(null);
+  // respostas cruas do scan aberto, usadas pelo modo demonstração
+  const [raw, setRaw] = useState<{ scan: ApiScanJob; findings: ApiFinding[] } | null>(null);
+  const [shots, setShots] = useState<string[]>([]);
   const [datasetError, setDatasetError] = useState<string | null>(null);
   const [isNewScanOpen, setIsNewScanOpen] = useState(false);
   const [rescanning, setRescanning] = useState(false);
@@ -46,8 +66,32 @@ export default function App() {
   }, [loadDomains, anyRunning]);
 
   const selected = domains?.find((d) => d.id === selectedId) ?? null;
-  const scanId = selected?.latest_scan_id ?? null;
-  const scanStatus = selected?.latest_scan_status ?? null;
+  const latestScanId = selected?.latest_scan_id ?? null;
+  const latestStatus = selected?.latest_scan_status ?? null;
+
+  // Histórico do domínio (antes/depois). Recarrega quando o último scan muda de status.
+  const [history, setHistory] = useState<ApiScanSummary[]>([]);
+  useEffect(() => {
+    if (selectedId == null || latestScanId == null) {
+      setHistory([]);
+      return;
+    }
+    let cancelled = false;
+    api
+      .listDomainScans(selectedId)
+      .then((h) => !cancelled && setHistory(h))
+      .catch(() => !cancelled && setHistory([]));
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedId, latestScanId, latestStatus]);
+
+  // Análise aberta: a mais recente, a menos que o usuário escolha outra no histórico.
+  const [viewScanId, setViewScanId] = useState<number | null>(null);
+  useEffect(() => setViewScanId(null), [selectedId, latestScanId]);
+  const scanId = viewScanId ?? latestScanId;
+  const scanStatus: ScanStatus | null =
+    viewScanId == null ? latestStatus : (history.find((h) => h.id === viewScanId)?.status ?? null);
 
   // Detalhe do scan selecionado (RF14/RF15). Recarrega quando o status muda
   // na lista e, enquanto roda, a cada POLL_RUNNING_MS.
@@ -61,9 +105,15 @@ export default function App() {
 
     const load = async () => {
       try {
-        const [scan, findings] = await Promise.all([api.getScan(scanId), api.getFindings(scanId)]);
+        const [scan, findings, screenshots] = await Promise.all([
+          api.getScan(scanId),
+          api.getFindings(scanId),
+          api.listScreenshots(scanId).catch(() => [] as string[]),
+        ]);
         if (cancelled) return;
         setDataset(toDataset(domain, scan, findings));
+        setRaw({ scan, findings });
+        setShots(screenshots);
         setDatasetError(null);
       } catch (e) {
         if (!cancelled) setDatasetError((e as Error).message);
@@ -87,10 +137,24 @@ export default function App() {
     setSelectedId(id);
   };
 
+  const handleViewScan = (id: number) => {
+    if (id === scanId) return;
+    setDataset(null);
+    setViewScanId(id === latestScanId ? null : id);
+  };
+
   const handleStartScan = async (domain: string, authorized: boolean) => {
     const res = await api.submitDomain(domain, authorized); // erros sobem para o modal
     setDataset(null);
     setSelectedId(res.domain_id);
+    await loadDomains();
+    return res;
+  };
+
+  const handleVerify = async (domainId: number) => {
+    await api.verifyDomain(domainId); // erro sobe para o painel de verificação
+    setDataset(null);
+    setSelectedId(domainId);
     await loadDomains();
   };
 
@@ -108,7 +172,28 @@ export default function App() {
   };
 
   const historyList = (domains ?? []).map(toHistoryItem);
-  const showDataset = dataset && dataset.domainId === selectedId ? dataset : null;
+  const showDataset = dataset && dataset.domainId === selectedId && dataset.scanId === scanId ? dataset : null;
+
+  const events = useScanEvents(scanId, isRunning(scanStatus));
+
+  // Modo demonstração: só para análises concluídas, com o feed já carregado.
+  const replaySource = useMemo<ReplaySource | null>(
+    () =>
+      selected && showDataset?.status === 'completed' && raw && raw.scan.id === showDataset.scanId && events.length
+        ? { domain: selected, scan: raw.scan, findings: raw.findings, events }
+        : null,
+    // selected muda de referência a cada poll; o conteúdo relevante está em raw/events
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [raw, events, showDataset?.status, showDataset?.scanId],
+  );
+  const replay = useReplay(replaySource);
+  const shown = replay.view?.dataset ?? showDataset;
+  const shownEvents = replay.view?.events ?? events;
+  const shownStatus = (replay.view?.status ?? showDataset?.rawStatus) as ScanStatus;
+  // no replay, os prints só aparecem depois da etapa em que foram tirados
+  const replayOrder: ScanStatus[] = ['scanning_js', 'triaging', 'completed'];
+  const shownShots = !replay.active || replayOrder.includes(shownStatus) ? shots : [];
+
 
   return (
     <div className="flex h-screen w-full bg-bg text-foreground overflow-hidden">
@@ -132,7 +217,7 @@ export default function App() {
           rescanning={rescanning}
           domain={showDataset?.domain ?? selected?.name}
           date={showDataset?.date}
-          status={showDataset?.status}
+          status={shown?.status}
         />
 
         <main className="flex-1 overflow-y-auto">
@@ -159,25 +244,93 @@ export default function App() {
               </Placeholder>
             )}
 
-            {selected && !showDataset && !datasetError && <Placeholder>Carregando análise…</Placeholder>}
+            {selected && scanId == null && selected.verification && (
+              <div className="bg-surface border border-border rounded-lg p-6 max-w-2xl mx-auto w-full">
+                <DomainVerification
+                  domain={selected.name}
+                  challenge={selected.verification}
+                  onVerify={() => handleVerify(selected.id)}
+                />
+              </div>
+            )}
+            {selected && scanId == null && !selected.verification && (
+              <Placeholder>Nenhuma análise para este domínio ainda.</Placeholder>
+            )}
+            {selected && scanId != null && !showDataset && !datasetError && <Placeholder>Carregando análise…</Placeholder>}
 
-            {showDataset && (
+            {showDataset && shown && (
               <>
-                <SummaryCards stats={showDataset.stats} />
-                <AnalysisProgress stages={showDataset.stages} />
-                <SecurityFindings findingsList={showDataset.findings} />
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                  <Infrastructure
-                    subdomainsList={showDataset.subdomains}
-                    openPortsList={showDataset.openPorts}
-                    takeoverRisksList={showDataset.takeoverRisks}
+                {viewScanId != null && (
+                  <div className="flex items-center justify-between gap-3 rounded-lg border border-med/30 bg-med/10 px-4 py-2.5 text-xs font-mono text-med">
+                    <span>Você está vendo uma análise anterior ({showDataset.date}).</span>
+                    <button onClick={() => handleViewScan(latestScanId!)} className="underline cursor-pointer hover:text-foreground">
+                      Voltar para a mais recente
+                    </button>
+                  </div>
+                )}
+                <SummaryCards stats={shown.stats} />
+                <AnalysisProgress stages={shown.stages} />
+                {showDataset.status === 'completed' && replay.available && (
+                  <ReplayBar
+                    active={replay.active}
+                    finished={replay.finished}
+                    paused={replay.paused}
+                    speed={replay.speed}
+                    progress={replay.progress}
+                    onStart={replay.start}
+                    onStop={replay.stop}
+                    onTogglePause={replay.togglePause}
+                    onSpeed={replay.setSpeed}
                   />
-                  <CodeFindings
-                    endpointsList={showDataset.endpoints}
-                    secretsList={showDataset.secrets}
-                    sensitiveFilesList={showDataset.sensitiveFiles}
+                )}
+                <LiveOperations
+                  scanId={shown.scanId}
+                  status={shownStatus}
+                  events={shownEvents}
+                  replay={replay.active}
+                />
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  <AttackSurfaceMap
+                    domain={shown.domain}
+                    subdomains={shown.subdomains}
+                    findings={shown.findings}
+                    running={shown.status === 'running'}
+                    screenshotOf={(h) => (shownShots.includes(h) ? api.screenshotUrl(shown.scanId, h) : undefined)}
+                  />
+                  <SecurityChecklist
+                    stages={shown.stages}
+                    findings={shown.findings}
+                    events={shownEvents}
+                    subdomains={shown.subdomains}
                   />
                 </div>
+                <SiteGallery
+                  scanId={shown.scanId}
+                  hosts={shownShots}
+                  subdomains={shown.subdomains}
+                  findings={shown.findings}
+                />
+                <SecurityFindings findingsList={shown.findings} />
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  <Infrastructure
+                    subdomainsList={shown.subdomains}
+                    openPortsList={shown.openPorts}
+                    takeoverRisksList={shown.takeoverRisks}
+                  />
+                  <CodeFindings
+                    endpointsList={shown.endpoints}
+                    secretsList={shown.secrets}
+                    sensitiveFilesList={shown.sensitiveFiles}
+                  />
+                </div>
+                {history.length > 1 && (
+                  <ScanHistory
+                    history={history}
+                    currentScanId={showDataset.scanId}
+                    currentFindings={showDataset.findings}
+                    onSelect={handleViewScan}
+                  />
+                )}
                 <FinalReport dataset={showDataset} />
               </>
             )}
@@ -189,6 +342,7 @@ export default function App() {
         isOpen={isNewScanOpen}
         onClose={() => setIsNewScanOpen(false)}
         onStartScan={handleStartScan}
+        onVerify={handleVerify}
       />
     </div>
   );

@@ -25,6 +25,8 @@ class Subdomain(Base):
     open_ports: Mapped[list | None] = mapped_column(JSON)
     takeover_candidate: Mapped[bool] = mapped_column(Boolean, default=False)
     takeover_fingerprint: Mapped[str | None] = mapped_column(String(255))
+    # Auditoria Web: None = nao verificado, "" = nenhuma assinatura de WAF, senao o nome
+    waf: Mapped[str | None] = mapped_column(String(64))
 
     scan_job: Mapped["ScanJob"] = relationship(back_populates="subdomains")
     findings: Mapped[list["Finding"]] = relationship(back_populates="subdomain")

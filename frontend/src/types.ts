@@ -5,12 +5,22 @@
 export type SeverityLevel = 'critical' | 'high' | 'medium' | 'low' | 'info' | 'unrated';
 export type FindingStatus = 'confirmed' | 'false_positive' | 'analyzing' | 'needs_review';
 export type AnalysisStatus = 'running' | 'completed' | 'error';
-export type FindingType = 'secret' | 'endpoint' | 'sensitive_file' | 'takeover' | 'open_port';
+export type FindingType =
+  | 'secret'
+  | 'endpoint'
+  | 'sensitive_file'
+  | 'web_config'
+  | 'takeover'
+  | 'open_port'
+  | 'vulnerable_component'
+  | 'credential_leak';
 
 export interface Finding {
   id: string;
   severity: SeverityLevel;
   type: FindingType;
+  /** ferramenta que gerou o achado (ex.: tls-check, gitleaks) */
+  sourceTool: string;
   title: string;
   target: string;
   file?: string;
@@ -29,6 +39,8 @@ export interface Subdomain {
   status: 'active' | 'inactive';
   ip?: string;
   ports: number[];
+  /** null = não verificado; "" = nenhum firewall detectado */
+  waf?: string | null;
 }
 
 export interface OpenPort {
@@ -73,10 +85,15 @@ export interface HistoryItem {
   domain: string;
   date: string;
   status: AnalysisStatus | 'pending';
+  needsVerification: boolean;
 }
 
 export interface AnalysisStage {
+  key: string;
   name: string;
+  /** O que a etapa faz, em linguagem simples (pra quem não é da área). */
+  description: string;
+  tool: string;
   status: 'completed' | 'running' | 'pending' | 'failed';
   progress: number;
 }
@@ -90,6 +107,14 @@ export interface ScanStats {
   high: number;
   medium: number;
   low: number;
+}
+
+export interface WebConfigIssue {
+  host: string;
+  check: string;
+  title: string;
+  status: FindingStatus;
+  severity: SeverityLevel;
 }
 
 export interface ScanDataset {
@@ -108,4 +133,7 @@ export interface ScanDataset {
   endpoints: Endpoint[];
   secrets: Secret[];
   sensitiveFiles: SensitiveFile[];
+  webConfig: WebConfigIssue[];
+  /** status cru da API, pra saber a etapa exata em andamento */
+  rawStatus: string;
 }

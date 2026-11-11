@@ -17,6 +17,9 @@ class Domain(Base):
     name: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
     authorized: Mapped[bool] = mapped_column(default=False)
     authorized_at: Mapped[datetime | None] = mapped_column(DateTime)
+    # verificacao de posse por DNS (services/domain_verification.py)
+    verification_token: Mapped[str | None] = mapped_column(String(64))
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     scan_jobs: Mapped[list["ScanJob"]] = relationship(back_populates="domain", cascade="all, delete-orphan")

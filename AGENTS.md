@@ -22,7 +22,15 @@ e gera um relatório final num painel.
 ⚠️ **Restrição de segurança que atravessa o projeto todo**: só se pode
 escanear domínios com `Domain.authorized = True`, e a submissão passa por
 uma validação anti-SSRF (`app/core/ssrf_guard.py`) que bloqueia domínios
-que resolvem pra IP privado/loopback/link-local. Qualquer código novo que
+que resolvem pra IP privado/loopback/link-local.
+**Posse do domínio provada por DNS** (`app/services/domain_verification.py`):
+`POST /api/domains` de domínio não verificado responde 202 com um desafio TXT
+(`_recon-agent-hub.<domínio>` = `recon-agent-hub-verify=<token>`) e não cria
+scan; `POST /api/domains/{id}/verify` confere o registro e dispara o scan. A
+verificação vale `DOMAIN_VERIFICATION_VALID_DAYS` (30) e o rescan reconfere
+sozinho. Isentos: `VERIFICATION_EXEMPT_DOMAINS` (scanme.nmap.org e
+vulnweb.com, alvos públicos de teste). O orchestrator também recusa domínio
+não verificado (defesa em profundidade). Não crie caminho que pule isso. Qualquer código novo que
 toque em recon, scraping ou triagem deve respeitar isso.
 
 ## Arquitetura e convenções já estabelecidas
@@ -93,6 +101,8 @@ toque em recon, scraping ou triagem deve respeitar isso.
 | **Módulo Código Web** (RF05-RF09 — issues #11-#15, #31) | `app/services/js_scanner/{discovery,downloader,endpoint_extractor,secret_scanner,sensitive_files}.py` | ✅ implementado e integrado ao pipeline; testado com unit + integração (mock de rede) |
 | **Módulo Agente de IA** (RF10-RF13 — issues #16-#19, #32) | `app/services/ai_triage/` | ✅ triagem em lotes (#17), prompts e relatório Markdown/PDF (#32); integrado no pipeline (#20); endpoints (#21) feitos; avaliação RF17 (#29) ainda não implementada |
 | Painel/frontend (issues #22-#25) | `frontend/src/` (`lib/api.ts`, `lib/adapters.ts`, `App.tsx`) | ✅ conectado à API real; testado com scan real |
+| **Auditoria Web** (cabeçalhos, CORS, TLS/HTTPS, SPF/DMARC) | `app/services/web_audit/` | ✅ etapa `web_audit` entre takeover e JS; achados `MISCONFIGURATION` + `PENDING` (IA dá a severidade), `source_tool` = `security-headers`/`cors-check`/`tls-check`/`email-security` |
+| Feed ao vivo do scan | `app/models/scan_event.py`, `app/services/scan_events.py`, `GET /api/scans/{id}/events?after_id=` | ✅ narração em linguagem simples, lida pelo painel (radar, terminal, mapa, checklist) |
 | `docker-compose` opcional (issue #30) | — | 🔲 não implementado, fase-5, não bloqueante |
 
 > **Branch de trabalho atual**: `dev-local`, com a infraestrutura e a base
@@ -264,8 +274,11 @@ API já disponível:
 - `GET /api/scans/{id}/report` — relatório gerado (JSON); `GET /api/scans/{id}/report.md` baixa o Markdown e `GET /api/scans/{id}/report.pdf` baixa o PDF (RF13).
 - `GET /api/scans/{id}` — status atual (`ScanStatus`: `pending`,
   `enumerating`, `probing`, `port_scanning`, `checking_takeover`,
-  `scanning_js`, `triaging`, `completed`, `failed`) + `subdomains` +
+  `web_audit`, `scanning_js`, `triaging`, `completed`, `failed`) + `subdomains` +
   `findings` quando disponíveis.
+- `GET /api/scans/{id}/events?after_id=N` — feed ao vivo (eventos com id > N),
+  usado no polling incremental do painel. Eventos são só narração: nada no
+  pipeline os lê, e falha ao gravá-los não derruba o scan.
 - `GET /api/domains` — lista de domínios com id e status do último scan
   (`latest_scan_id`, `latest_scan_status`) — RF16.
 - `GET /api/domains/{id}` — detalhe de um domínio.
@@ -287,8 +300,11 @@ Produção: `cd frontend && pnpm build` gera `frontend/dist`, e o próprio
 FastAPI serve o painel na mesma porta da API (`app/frontend.py`, rota
 catch-all registrada por último em `app/main.py`). Sem `dist`, só a API sobe.
 
-Pendente: histórico de scans anteriores de um mesmo domínio (a API ainda não
-lista scans por domínio; só o último fica acessível pela UI).
+Histórico: `GET /api/domains/{id}/scans` lista os scans do domínio com
+resumo (contagem por severidade, sem falsos positivos). O painel mostra a
+evolução em barras, permite abrir análises antigas e compara com a anterior
+(resolvidos/novos), casando achados por tipo + ferramenta + alvo + título sem
+números (`ScanHistory.tsx`).
 
 ## Tabela de rastreabilidade RF → código
 
@@ -311,3 +327,48 @@ lista scans por domínio; só o último fica acessível pela UI).
 | RF15 | Acompanhamento de status | `app/routers/scans.py` ✅ (API) / `frontend/src/App.tsx` ✅ (UI, polling) |
 | RF16 | Histórico no banco | `app/routers/domains.py::list_domains` ✅ |
 | RF17 | Casos de teste da IA | `backend/tests/` 🔲 |
+
+## Auditoria Web e feed ao vivo
+
+Verificadores (todos em `app/services/web_audit/`): cabeçalhos e cookies
+(`headers.py`), CORS (`cors.py`), HTTPS/certificado (`tls.py`), WAF por
+assinatura passiva de cabeçalho/cookie, sem payload (`waf.py`, grava
+`Subdomain.waf`: `None` = não verificado, `""` = nenhum), versões expostas →
+CVEs no NVD (`cve_lookup.py`, categoria `VULNERABLE_COMPONENT`, cache 7 dias
+em `data/cve_cache`, `NVD_API_KEY` opcional acelera), SPF/DMARC
+(`email_security.py`), DNSSEC/CAA (`dns_security.py`) e vazamentos via
+HaveIBeenPwned (`breaches.py`, categoria `CREDENTIAL_LEAK`, só com
+`HIBP_API_KEY`; guarda contagens e e-mails mascarados, nunca a lista).
+O achado de CVE é **indicativo**: a evidência leva o aviso de backport
+(Ubuntu/Debian corrigem sem mudar a versão), e a IA tende a marcá-lo para
+revisão. Não remova esse aviso. Os itens do checklist adicionados depois
+dependem de um trecho de evento (`marker` em `SecurityChecklist.tsx`) para
+saber se o teste rodou; ao mudar essas mensagens no backend, ajuste o marker.
+
+`app/services/web_audit/` roda verificações **passivas**: no máximo dois GET
+por host (o segundo com `Origin` falso em `.invalid` para testar CORS), um
+handshake TLS e consultas TXT de DNS no domínio raiz. Tudo passa pelo
+`HostGuard`/`ssrf_guard` e pelo `is_in_scope` do módulo Código Web. Não
+adicione aqui nada que explore falha ou envie payload. Os eventos do feed
+(`emit`/`emit_list` em `app/services/scan_events.py`) usam português com
+acento porque aparecem para leigos no painel; listas longas são cortadas
+(`emit_list(limit=...)`). No painel, scans concluídos sem eventos da etapa
+`web_audit` (anteriores a ela) mostram esses testes como "Não testado", e
+não como aprovados.
+
+## Prints dos sites (opcional)
+
+`app/services/screenshots.py` fotografa a página inicial de até 20 sites
+ativos, na etapa `web_audit`, com Chromium headless do Playwright (extra
+opcional): `uv sync --extra screenshots` e `uv run playwright install
+chromium` (no Ubuntu do servidor: `uv run playwright install --with-deps
+chromium`, pede sudo). Sem isso, o feed mostra um aviso e o scan segue.
+`scripts/dev.sh` usa `uv sync --all-extras` para não remover o extra.
+
+⚠️ **Não troque `_guarded` por `route.continue_()`**: testado na prática, o
+Chromium segue redirecionamento sem passar de novo pelo interceptador, e um
+site poderia levar o navegador a um endereço interno (metadata da AWS). Toda
+requisição é feita por `route.fetch(max_redirects=0)`, salto a salto, com o
+host validado pelo `HostGuard`; `tests/test_screenshots.py` cobre isso com o
+Chromium real. Endpoints: `GET /api/scans/{id}/screenshots` e
+`GET /api/scans/{id}/screenshots/{hostname}.jpg`.

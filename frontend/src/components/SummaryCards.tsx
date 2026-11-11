@@ -1,8 +1,9 @@
 import type { ScanStats } from '../types';
+import AnimatedNumber from './AnimatedNumber';
 
 interface CardProps {
   label: string;
-  value: number | string;
+  value: number;
   sub?: string;
   accent?: string;
   small?: boolean;
@@ -13,7 +14,7 @@ function Card({ label, value, sub, accent, small }: CardProps) {
     <div className="bg-surface border border-border rounded-lg px-4 py-3.5 flex flex-col gap-1">
       <p className="text-[10px] font-mono text-muted tracking-wider uppercase">{label}</p>
       <p className={`font-display font-700 leading-none ${small ? 'text-2xl' : 'text-3xl'} ${accent ?? 'text-foreground'}`}>
-        {value}
+        <AnimatedNumber value={value} />
       </p>
       {sub && <p className="text-[11px] text-muted">{sub}</p>}
     </div>

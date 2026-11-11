@@ -11,6 +11,7 @@ if TYPE_CHECKING:
     from app.models.domain import Domain
     from app.models.finding import Finding
     from app.models.report import Report
+    from app.models.scan_event import ScanEvent
     from app.models.subdomain import Subdomain
 
 
@@ -20,6 +21,7 @@ class ScanStatus(str, enum.Enum):
     PROBING = "probing"
     PORT_SCANNING = "port_scanning"
     CHECKING_TAKEOVER = "checking_takeover"
+    WEB_AUDIT = "web_audit"
     SCANNING_JS = "scanning_js"
     TRIAGING = "triaging"
     COMPLETED = "completed"
@@ -42,3 +44,4 @@ class ScanJob(Base):
     subdomains: Mapped[list["Subdomain"]] = relationship(back_populates="scan_job", cascade="all, delete-orphan")
     findings: Mapped[list["Finding"]] = relationship(back_populates="scan_job", cascade="all, delete-orphan")
     report: Mapped["Report | None"] = relationship(back_populates="scan_job", cascade="all, delete-orphan")
+    events: Mapped[list["ScanEvent"]] = relationship(cascade="all, delete-orphan", order_by="ScanEvent.id")
