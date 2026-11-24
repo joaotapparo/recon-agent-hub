@@ -68,7 +68,11 @@ def check_takeover(hostname: str, probe: dict | None = None) -> dict:
     for fp in _load_fingerprints():
         cname_match = cname is not None and fp["cname_pattern"] in cname
         body_match = bool(fp.get("body_fingerprint")) and fp["body_fingerprint"] in body
-        if cname_match or body_match:
+        # Os DOIS sinais juntos (secao 4.5 / RF04): CNAME apontando pro servico
+        # E a pagina de "recurso nao existe" dele. So o CNAME marcaria qualquer
+        # site funcionando no GitHub Pages/Fastly/Azure; so o corpo marcaria
+        # qualquer 404 padrao do nginx/Apache ("404 Not Found").
+        if cname_match and body_match:
             return {"cname": cname, "is_candidate": True, "fingerprint": fp["service"]}
 
     return {"cname": cname, "is_candidate": False, "fingerprint": None}
