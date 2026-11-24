@@ -212,8 +212,9 @@ async def _scan_ports(hostname: str, scan_job_id: int) -> list[dict]:
 
 async def _triage(db: Session, scan_job: ScanJob) -> None:
     """
-    Sem GEMINI_API_KEY o scan nao falha: os achados ficam pending e o
-    relatorio sai no modo basico (generate_report ja trata esse caso).
+    Sem GEMINI_API_KEY o scan nao falha: os achados vao para needs_review,
+    com o motivo, e o relatorio sai no modo basico (generate_report ja trata
+    esse caso).
     """
     pending = _verdict_counts(db, scan_job).get(AIVerdict.PENDING, 0)
     if not pending:
