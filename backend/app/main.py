@@ -9,11 +9,14 @@ from app import (
     models,  # noqa: F401 - garante que os models sao registrados no Base.metadata
 )
 from app.config import settings
+from app.core.logging import configure_logging
 from app.frontend import mount_frontend
 from app.routers import domains, findings, reports, review, scans
 from app.workers.job_runner import recover_orphaned_jobs, start_worker
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
+
+configure_logging(settings.log_level, settings.log_format)  # issue #28
 
 
 @asynccontextmanager

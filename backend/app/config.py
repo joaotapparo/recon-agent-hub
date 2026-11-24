@@ -67,6 +67,10 @@ class Settings(BaseSettings):
     nvd_api_key: str = ""
     hibp_api_key: str = ""
 
+    # logging estruturado (issue #28): "json" ou "text"
+    log_level: str = "INFO"
+    log_format: str = "json"
+
     cors_origins: list[str] = ["http://localhost:3000", "http://localhost:5173"]
 
 
