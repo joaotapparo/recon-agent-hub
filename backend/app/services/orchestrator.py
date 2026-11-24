@@ -16,6 +16,7 @@ from datetime import datetime
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.core.logging import scan_id_var
 from app.core.subprocess_runner import ToolError
 from app.database import SessionLocal
 from app.models import (
@@ -27,7 +28,13 @@ from app.models import (
     ScanStatus,
     Subdomain,
 )
-from app.services import ai_triage, domain_verification, js_scanner, screenshots, web_audit
+from app.services import (
+    ai_triage,
+    domain_verification,
+    js_scanner,
+    screenshots,
+    web_audit,
+)
 from app.services.recon.takeover_check import check_takeover
 from app.services.scan_events import emit, emit_list
 from app.tool_wrappers.httpx_cli import run_httpx
@@ -38,6 +45,15 @@ logger = logging.getLogger(__name__)
 
 
 async def run_scan_job(scan_job_id: int) -> None:
+    # toda linha de log desta analise (e das tarefas que ela cria) leva o scan_id
+    token = scan_id_var.set(scan_job_id)
+    try:
+        await _run_scan_job(scan_job_id)
+    finally:
+        scan_id_var.reset(token)
+
+
+async def _run_scan_job(scan_job_id: int) -> None:
     db: Session = SessionLocal()
     try:
         scan_job = db.get(ScanJob, scan_job_id)
