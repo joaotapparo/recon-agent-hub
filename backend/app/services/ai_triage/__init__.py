@@ -17,6 +17,8 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.models import AIVerdict, Finding, ScanJob
 from app.services.ai_triage.base import AITriageProvider, TriageResult
+from app.services.ai_triage.claude_provider import ClaudeTriageProvider
+from app.services.ai_triage.fallback_provider import FallbackTriageProvider
 from app.services.ai_triage.gemini_provider import GeminiTriageProvider
 from app.services.ai_triage.report_builder import generate_report, load_scan_findings
 
@@ -42,9 +44,17 @@ def get_triage_provider() -> AITriageProvider:
         raise ValueError(
             f"provider de triagem desconhecido: {settings.ai_triage_provider}"
         )
-    if not settings.gemini_api_key:
-        raise ValueError("GEMINI_API_KEY nao configurada - preencha o backend/.env")
-    return GeminiTriageProvider()
+    providers: list[AITriageProvider] = []
+    if settings.gemini_api_key:
+        providers.append(GeminiTriageProvider())
+    if settings.anthropic_api_key:
+        # reserva: so e chamado quando o Gemini nao consegue responder
+        providers.append(ClaudeTriageProvider())
+    if not providers:
+        raise ValueError(
+            "GEMINI_API_KEY nao configurada (nem ANTHROPIC_API_KEY) - preencha o backend/.env"
+        )
+    return providers[0] if len(providers) == 1 else FallbackTriageProvider(providers)
 
 
 async def triage_findings(db: Session, scan_job: ScanJob) -> None:

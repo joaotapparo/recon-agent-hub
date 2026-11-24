@@ -33,6 +33,14 @@ class Settings(BaseSettings):
     # com 30s o resumo deu timeout no teste real; com 60s e retry, concluiu.
     gemini_timeout_seconds: int = Field(default=60, gt=0)
 
+    # Claude como reserva: usado quando todos os modelos do Gemini falham
+    # (sobrecarga 503, cota 429). Sem ANTHROPIC_API_KEY, so o Gemini e usado.
+    anthropic_api_key: str = ""
+    claude_model: str = "claude-opus-5-5"
+    # o padrao do claude-opus-5-5 ja e "medium"; fica explicito pra nao mudar sozinho
+    claude_effort: str = "medium"
+    claude_timeout_seconds: int = Field(default=120, gt=0)
+
     subfinder_path: str = "subfinder"
     httpx_path: str = "httpx"
     nmap_path: str = "nmap"

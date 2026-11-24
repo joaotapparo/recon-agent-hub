@@ -5,6 +5,7 @@ import re
 from datetime import UTC, datetime
 from html import escape
 
+import anthropic
 import httpx
 from google.genai.errors import APIError
 from pydantic import ValidationError
@@ -231,6 +232,7 @@ async def generate_report(
             ai_summary = getattr(provider, "last_summary", None)
         except (
             APIError,
+            anthropic.APIError,
             httpx.HTTPError,
             TimeoutError,
             ValidationError,
