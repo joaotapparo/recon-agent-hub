@@ -18,6 +18,9 @@ class Report(Base):
     scan_job_id: Mapped[int] = mapped_column(ForeignKey("scan_jobs.id", ondelete="CASCADE"), unique=True, index=True)
 
     summary: Mapped[str | None] = mapped_column(Text)
+    # paragrafo escrito pela IA, guardado a parte pra remontar o relatorio
+    # depois de uma revisao humana sem chamar o modelo de novo
+    ai_summary: Mapped[str | None] = mapped_column(Text)
     markdown_content: Mapped[str] = mapped_column(Text)
     ai_model_used: Mapped[str] = mapped_column(String(64))
     generated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())

@@ -93,6 +93,19 @@ export interface ApiFinding {
   ai_remediation: string | null;
   created_at: string;
   triaged_at: string | null;
+  /** revisão humana: quando existe, final_* segue a decisão do profissional */
+  human_verdict: AIVerdict | null;
+  human_severity: Severity | null;
+  human_note: string | null;
+  reviewed_at: string | null;
+  final_verdict: AIVerdict;
+  final_severity: Severity | null;
+}
+
+export interface ReviewPayload {
+  verdict: 'true_positive' | 'false_positive';
+  severity?: Severity | null;
+  note?: string | null;
 }
 
 export interface ApiReport {
@@ -203,6 +216,11 @@ export const api = {
     `${BASE_URL}/api/scans/${scanId}/screenshots/${encodeURIComponent(hostname)}.jpg`,
 
   getReport: (scanId: number) => request<ApiReport>(`/api/scans/${scanId}/report`),
+
+  reviewFinding: (findingId: number, body: ReviewPayload) =>
+    request<ApiFinding>(`/api/findings/${findingId}/review`, { method: 'PUT', body: JSON.stringify(body) }),
+  undoReview: (findingId: number) =>
+    request<ApiFinding>(`/api/findings/${findingId}/review`, { method: 'DELETE' }),
 
   reportMarkdownUrl: (scanId: number) => `${BASE_URL}/api/scans/${scanId}/report.md`,
   reportPdfUrl: (scanId: number) => `${BASE_URL}/api/scans/${scanId}/report.pdf`,

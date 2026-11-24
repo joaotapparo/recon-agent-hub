@@ -57,7 +57,8 @@ export default function FinalReport({ dataset }: FinalReportProps) {
 
   const handleView = () =>
     run('view', async () => {
-      const data = report?.scan_job_id === scanId ? report : await api.getReport(scanId);
+      // sempre busca de novo: uma revisão humana remonta o relatório
+      const data = await api.getReport(scanId);
       setReport(data);
       setIsOpen(true);
     });

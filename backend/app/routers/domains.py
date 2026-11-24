@@ -130,10 +130,10 @@ def _start_scan(db: Session, domain: Domain) -> int:
 
 
 def _scan_summary(job: ScanJob) -> ScanSummaryOut:
-    relevant = [f for f in job.findings if f.ai_verdict != AIVerdict.FALSE_POSITIVE]
+    relevant = [f for f in job.findings if f.final_verdict != AIVerdict.FALSE_POSITIVE]
     by_severity: dict[str, int] = {}
     for f in relevant:
-        key = f.ai_severity.value if f.ai_severity else "unrated"
+        key = f.final_severity.value if f.final_severity else "unrated"
         by_severity[key] = by_severity.get(key, 0) + 1
     return ScanSummaryOut(
         id=job.id,

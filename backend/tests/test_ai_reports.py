@@ -119,7 +119,9 @@ def test_relatorio_organiza_severidades_e_separa_revisao(scan):
     )
 
     assert markdown.index("Risco critico") < markdown.index("Risco baixo")
-    assert "Descartado" not in markdown
+    # falso positivo nao some: fica listado no fim, sem a evidencia
+    assert markdown.index("Descartado") > markdown.index("## Descartados como falso positivo")
+    assert markdown.count("#### Evidência") == 4
     assert markdown.index("Inconclusivo") > markdown.index("## Precisa de revisão")
     assert "Ainda pendente" in markdown
     assert "2 confirmado(s), 2 para revisão e 1 falso(s) positivo(s)" in markdown
@@ -312,7 +314,9 @@ def test_apenas_falsos_positivos_nao_chama_ia(db, scan, provider):
     report = asyncio.run(generate_report(db, scan))
 
     provider.generate_report.assert_not_awaited()
-    assert "Credencial exposta" not in report.markdown_content
+    md = report.markdown_content
+    assert md.index("Credencial exposta") > md.index("## Descartados como falso positivo")
+    assert "#### Evidência" not in md
     assert "1 falso(s) positivo(s)" in report.summary
     assert report.ai_model_used == "none"
 

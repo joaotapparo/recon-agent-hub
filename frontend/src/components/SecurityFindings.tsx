@@ -1,8 +1,145 @@
 import { useState } from 'react';
-import { SeverityBadge, StatusBadge, getSeverity, typeLabel } from '../utils';
+import { SeverityBadge, StatusBadge, getSeverity, statusMap, typeLabel } from '../utils';
+import { api, type Severity } from '../lib/api';
 import type { Finding } from '../types';
 
-function FindingPanel({ finding, onClose }: { finding: Finding; onClose: () => void }) {
+const SEVERITY_OPTIONS: { value: Severity; label: string }[] = [
+  { value: 'critical', label: 'Crítico' },
+  { value: 'high', label: 'Alto' },
+  { value: 'medium', label: 'Médio' },
+  { value: 'low', label: 'Baixo' },
+  { value: 'info', label: 'Info' },
+];
+
+/**
+ * Revisão humana: a IA sugere, o profissional decide. A decisão vale no
+ * painel e no relatório; a sugestão da IA continua registrada.
+ */
+function ReviewBox({
+  finding,
+  readOnly,
+  onReviewed,
+}: {
+  finding: Finding;
+  readOnly: boolean;
+  onReviewed: () => void;
+}) {
+  const initialSeverity: Severity =
+    finding.severity !== 'unrated' ? finding.severity : finding.aiSeverity !== 'unrated' ? finding.aiSeverity : 'medium';
+  const [severity, setSeverity] = useState<Severity>(initialSeverity);
+  const [note, setNote] = useState(finding.review?.note ?? '');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const send = async (action: () => Promise<unknown>) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await action();
+      onReviewed();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const confirm = () =>
+    send(() => api.reviewFinding(finding.apiId, { verdict: 'true_positive', severity, note: note || null }));
+  const discard = () => send(() => api.reviewFinding(finding.apiId, { verdict: 'false_positive', note: note || null }));
+  const undo = () => send(() => api.undoReview(finding.apiId));
+
+  return (
+    <div className="rounded border border-border-2 bg-surface px-4 py-3 space-y-3">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-[10px] font-mono text-foreground tracking-widest uppercase">Decisão do profissional</p>
+        {finding.review && (
+          <span className="text-[10px] font-mono text-ok bg-ok/10 border border-ok/20 px-1.5 py-0.5 rounded">
+            revisado em {finding.review.date}
+          </span>
+        )}
+      </div>
+
+      {finding.review ? (
+        <p className="text-xs text-subtle leading-relaxed">
+          Você marcou como <strong className="text-foreground">{statusMap[finding.status].label.toLowerCase()}</strong>.
+          A IA tinha sugerido <strong className="text-foreground">{statusMap[finding.aiStatus].label.toLowerCase()}</strong>
+          {finding.aiSeverity !== 'unrated' ? ` (${finding.aiSeverity})` : ''}.
+          {finding.review.note && <span className="block mt-1.5 italic">“{finding.review.note}”</span>}
+        </p>
+      ) : (
+        <p className="text-xs text-subtle leading-relaxed">
+          A classificação acima é uma sugestão da IA. Confirme ou descarte o achado: a sua decisão é a que vale no
+          painel e no relatório.
+        </p>
+      )}
+
+      {readOnly ? (
+        <p className="text-[11px] font-mono text-muted">Revisão indisponível durante o modo demonstração.</p>
+      ) : (
+        <>
+          <textarea
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            maxLength={2000}
+            rows={2}
+            placeholder="Nota (opcional): por que você confirmou ou descartou"
+            className="w-full bg-bg border border-border rounded px-2.5 py-2 text-xs text-foreground placeholder:text-muted outline-none focus:border-accent/50 resize-y"
+          />
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={severity}
+              onChange={(e) => setSeverity(e.target.value as Severity)}
+              disabled={busy}
+              aria-label="Severidade ao confirmar"
+              className="bg-surface-2 border border-border text-xs text-subtle font-mono rounded px-2 py-1.5 outline-none focus:border-accent/50"
+            >
+              {SEVERITY_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+            <button
+              onClick={confirm}
+              disabled={busy}
+              className="px-3 py-1.5 rounded text-xs font-medium text-ok bg-ok/10 border border-ok/30 hover:bg-ok/20 disabled:opacity-50 transition-colors"
+            >
+              Confirmar achado
+            </button>
+            <button
+              onClick={discard}
+              disabled={busy}
+              className="px-3 py-1.5 rounded text-xs font-medium text-subtle bg-surface-2 border border-border-2 hover:bg-surface-3 disabled:opacity-50 transition-colors"
+            >
+              Descartar (falso positivo)
+            </button>
+            {finding.review && (
+              <button
+                onClick={undo}
+                disabled={busy}
+                className="px-2 py-1.5 rounded text-[11px] font-mono text-muted hover:text-foreground disabled:opacity-50 transition-colors"
+              >
+                Desfazer revisão
+              </button>
+            )}
+          </div>
+          {error && <p className="text-[11px] text-crit">{error}</p>}
+        </>
+      )}
+    </div>
+  );
+}
+
+function FindingPanel({
+  finding,
+  onClose,
+  readOnly,
+  onReviewed,
+}: {
+  finding: Finding;
+  onClose: () => void;
+  readOnly: boolean;
+  onReviewed: () => void;
+}) {
   return (
     <>
       <div className="fixed inset-0 bg-black/50 z-30" onClick={onClose} />
@@ -29,6 +166,8 @@ function FindingPanel({ finding, onClose }: { finding: Finding; onClose: () => v
             <SeverityBadge severity={finding.severity} />
             <StatusBadge status={finding.status} />
           </div>
+
+          <ReviewBox key={`${finding.id}-${finding.review?.date ?? 'ia'}`} finding={finding} readOnly={readOnly} onReviewed={onReviewed} />
 
           <div className="grid grid-cols-2 gap-3">
             {[
@@ -59,7 +198,7 @@ function FindingPanel({ finding, onClose }: { finding: Finding; onClose: () => v
           )}
 
           <div className="rounded border border-accent/20 bg-accent/5 px-4 py-3">
-            <p className="text-[10px] font-mono text-accent tracking-widest uppercase mb-1.5">Validação da IA</p>
+            <p className="text-[10px] font-mono text-accent tracking-widest uppercase mb-1.5">Sugestão da IA</p>
             <p className="text-xs text-subtle leading-relaxed whitespace-pre-line">{finding.aiValidation}</p>
           </div>
 
@@ -113,10 +252,16 @@ function Select({
 
 interface SecurityFindingsProps {
   findingsList: Finding[];
+  /** chamado depois de uma revisão, pra recarregar os dados do scan */
+  onReviewed?: () => void;
+  /** modo demonstração: mostra a revisão, mas não deixa mudar */
+  readOnly?: boolean;
 }
 
-export default function SecurityFindings({ findingsList }: SecurityFindingsProps) {
-  const [selected, setSelected] = useState<Finding | null>(null);
+export default function SecurityFindings({ findingsList, onReviewed, readOnly = false }: SecurityFindingsProps) {
+  // guarda o id, não o objeto: depois de uma revisão a lista é recarregada
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selected = findingsList.find((f) => f.id === selectedId) ?? null;
   const [filterSev, setFilterSev] = useState<string>('all');
   const [filterType, setFilterType] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
@@ -222,7 +367,7 @@ export default function SecurityFindings({ findingsList }: SecurityFindingsProps
             {filtered.map((f) => (
               <tr
                 key={f.id}
-                onClick={() => setSelected(f)}
+                onClick={() => setSelectedId(f.id)}
                 className="border-b border-border hover:bg-surface-2 transition-colors cursor-pointer animate-row-in"
               >
                 <td className="px-4 py-3">
@@ -238,7 +383,17 @@ export default function SecurityFindings({ findingsList }: SecurityFindingsProps
                   {f.file ? `${f.file}${f.line ? `:${f.line}` : ''}` : '—'}
                 </td>
                 <td className="px-4 py-3">
-                  <StatusBadge status={f.status} />
+                  <div className="flex items-center gap-1.5">
+                    <StatusBadge status={f.status} />
+                    {f.review && (
+                      <span
+                        title="Revisado pelo profissional"
+                        className="text-[9px] font-mono uppercase tracking-wider text-ok border border-ok/20 bg-ok/10 px-1 py-0.5 rounded"
+                      >
+                        revisado
+                      </span>
+                    )}
+                  </div>
                 </td>
                 <td className="px-4 py-3 font-mono text-muted text-[11px]">{f.date}</td>
               </tr>
@@ -247,7 +402,14 @@ export default function SecurityFindings({ findingsList }: SecurityFindingsProps
         </table>
       </div>
 
-      {selected && <FindingPanel finding={selected} onClose={() => setSelected(null)} />}
+      {selected && (
+        <FindingPanel
+          finding={selected}
+          onClose={() => setSelectedId(null)}
+          readOnly={readOnly || !onReviewed}
+          onReviewed={() => onReviewed?.()}
+        />
+      )}
     </section>
   );
 }
