@@ -100,7 +100,7 @@ toque em recon, scraping ou triagem deve respeitar isso.
 | Orquestração do pipeline (issues #7, #20) | `app/services/orchestrator.py` | ✅ pronto — recon → scanning_js → triaging → report (sem GEMINI_API_KEY, os achados vão para revisão com o motivo e o scan conclui) |
 | Endpoints de domínio/scan (RF01, RF15, RF16 — issues #9, #10) | `app/routers/domains.py`, `app/routers/scans.py`, `app/schemas/domain.py`, `app/schemas/scan.py` | ✅ pronto |
 | **Módulo Código Web** (RF05-RF09 — issues #11-#15, #31) | `app/services/js_scanner/{discovery,downloader,endpoint_extractor,secret_scanner,sensitive_files}.py` | ✅ implementado e integrado ao pipeline; testado com unit + integração (mock de rede) |
-| **Módulo Agente de IA** (RF10-RF13 — issues #16-#19, #32) | `app/services/ai_triage/` | ✅ triagem em lotes (#17), prompts e relatório Markdown/PDF (#32); integrado no pipeline (#20); endpoints (#21) feitos; avaliação RF17 (#29) ainda não implementada |
+| **Módulo Agente de IA** (RF10-RF13 — issues #16-#19, #32) | `app/services/ai_triage/` | ✅ triagem em lotes (#17), prompts e relatório Markdown/PDF (#32); integrado no pipeline (#20); endpoints (#21) feitos; Claude como reserva do Gemini; revisão humana dos achados; avaliação RF17 (#29) implementada (`backend/eval_ai_triage.py`) |
 | Painel/frontend (issues #22-#25) | `frontend/src/` (`lib/api.ts`, `lib/adapters.ts`, `App.tsx`) | ✅ conectado à API real; testado com scan real |
 | **Auditoria Web** (cabeçalhos, CORS, TLS/HTTPS, SPF/DMARC) | `app/services/web_audit/` | ✅ etapa `web_audit` entre takeover e JS; achados `MISCONFIGURATION` + `PENDING` (IA dá a severidade), `source_tool` = `security-headers`/`cors-check`/`tls-check`/`email-security` |
 | Feed ao vivo do scan | `app/models/scan_event.py`, `app/services/scan_events.py`, `GET /api/scans/{id}/events?after_id=` | ✅ narração em linguagem simples, lida pelo painel (radar, terminal, mapa, checklist) |
@@ -211,7 +211,9 @@ A ordem padrão (3.8 Flash → 3.6 Flash → 3.5 Flash-Lite → 3.1 Flash-Lite) 
 os Flash gratuitos da página de preços do Gemini em 10/11/2026; nenhum deles
 além do 3.6 foi testado com chamada real.
 Os testes atuais verificam contratos e persistência com IA simulada, não a
-taxa de acerto do Gemini real (RF17, issue #29, ainda não implementada).
+taxa de acerto do Gemini real. A taxa de acerto (RF17, issue #29) é medida à parte por
+`backend/eval_ai_triage.py`, com 40 casos rotulados em `backend/eval/triage_cases.json`
+(resultados das 3 rodadas com `claude-opus-5-5` no PR #43).
 Em 06/10/2026, `demo_ai_report.py --real` confirmou três triagens reais com
 `gemini-3.6-flash`. As primeiras rodadas tiveram 503/timeouts e fallback
 persistido. Depois do ajuste de temperatura para `1.0`, as triagens concluíram,
@@ -336,7 +338,21 @@ números (`ScanHistory.tsx`).
 | RF14 | Painel mostra tudo | `frontend/src/` ✅ |
 | RF15 | Acompanhamento de status | `app/routers/scans.py` ✅ (API) / `frontend/src/App.tsx` ✅ (UI, polling) |
 | RF16 | Histórico no banco | `app/routers/domains.py::list_domains` ✅ |
-| RF17 | Casos de teste da IA | `backend/tests/` 🔲 |
+| RF17 | Casos de teste da IA | `backend/eval_ai_triage.py` + `backend/eval/triage_cases.json` ✅ |
+
+## IA reserva, revisão humana e logging
+
+- **Claude como reserva** (`claude_provider.py`, `fallback_provider.py`): com
+  `ANTHROPIC_API_KEY`, triagem e síntese tentam o Gemini e, se todos os modelos
+  dele falharem, seguem no Claude (`CLAUDE_MODEL`, padrão `claude-opus-5-5`).
+  Sem nenhuma chave, o comportamento é `NEEDS_REVIEW` com motivo. Os testes
+  nunca usam as chaves reais do `.env`.
+- **Revisão humana**: `PUT/DELETE /api/findings/{id}/review`. A sugestão da IA
+  fica em `ai_*`; a decisão humana em `human_*` e prevalece (`final_verdict`,
+  `final_severity`) no painel, filtros, histórico e relatório, que é remontado
+  sem chamar a IA de novo (resumo em `reports.ai_summary`).
+- **Logging estruturado** em JSON com `scan_id` em cada linha (issue #28).
+- **Takeover** exige CNAME do serviço E página de erro (menos alarme falso).
 
 ## Auditoria Web e feed ao vivo
 
