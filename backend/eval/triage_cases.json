@@ -1,0 +1,755 @@
+{
+  "description": "Conjunto rotulado para avaliar a triagem por IA. Todo o conteudo e ficticio; os secrets estao mascarados do mesmo jeito que o js_scanner grava no banco, entao a IA ve exatamente o que veria num scan real. expected = gabarito definido pela equipe; why = justificativa do rotulo.",
+  "version": 1,
+  "cases": [
+    {
+      "id": "S-R01",
+      "expected": "true_positive",
+      "why": "par de credenciais AWS de producao usado pelo cliente S3",
+      "category": "exposed_secret",
+      "source_tool": "gitleaks",
+      "title": "Possivel secret (aws-access-key-id) em upload.4f2a.js",
+      "target": "https://loja-exemplo.com.br/static/js/upload.4f2a.js",
+      "raw_evidence": {
+        "rule": "aws-access-key-id",
+        "detector": "gitleaks",
+        "js_url": "https://loja-exemplo.com.br/static/js/upload.4f2a.js",
+        "js_sha256": "3681917ce82019ffd4e11da0f2a4d3bd5c66024aacfe4f664f15d729945085b4",
+        "line": 112,
+        "masked_secret": "AKIA...Q7XZ <redacted 20 chars>",
+        "context": "const s3 = new AWS.S3({ accessKeyId: \"AKIA...Q7XZ <redacted 20 chars>\", secretAccessKey: \"wJal...Kx9P <redacted 40 chars>\", region: \"sa-east-1\" });",
+        "entropy": 3.9
+      }
+    },
+    {
+      "id": "S-R02",
+      "expected": "true_positive",
+      "why": "token pessoal do GitHub com uso real em chamada de API",
+      "category": "exposed_secret",
+      "source_tool": "gitleaks",
+      "title": "Possivel secret (github-pat) em admin-tools.9c1e.js",
+      "target": "https://loja-exemplo.com.br/static/js/admin-tools.9c1e.js",
+      "raw_evidence": {
+        "rule": "github-pat",
+        "detector": "gitleaks",
+        "js_url": "https://loja-exemplo.com.br/static/js/admin-tools.9c1e.js",
+        "js_sha256": "f269fc9bebefac93261a889364e55c123ec868cde865fd3da69928e5e0568938",
+        "line": 48,
+        "masked_secret": "ghp_...k2Lm <redacted 40 chars>",
+        "context": "fetch(\"https://api.github.com/repos/loja/infra/dispatches\", { method: \"POST\", headers: { Authorization: \"token ghp_...k2Lm <redacted 40 chars>\" } })",
+        "entropy": 5.1
+      }
+    },
+    {
+      "id": "S-R03",
+      "expected": "true_positive",
+      "why": "chave secreta live do Stripe no front-end",
+      "category": "exposed_secret",
+      "source_tool": "gitleaks",
+      "title": "Possivel secret (stripe-access-token) em checkout.71bd.js",
+      "target": "https://loja-exemplo.com.br/static/js/checkout.71bd.js",
+      "raw_evidence": {
+        "rule": "stripe-access-token",
+        "detector": "gitleaks",
+        "js_url": "https://loja-exemplo.com.br/static/js/checkout.71bd.js",
+        "js_sha256": "1222bc06d5a24e84473850dca1985beb86a1ce220b3b064851f02add874643e7",
+        "line": 23,
+        "masked_secret": "sk_l...9aQe <redacted 32 chars>",
+        "context": "const stripe = Stripe.createServerClient(\"sk_l...9aQe <redacted 32 chars>\"); // cobranca direta",
+        "entropy": 4.7
+      }
+    },
+    {
+      "id": "S-R04",
+      "expected": "true_positive",
+      "why": "webhook do Slack permite postar no canal da empresa",
+      "category": "exposed_secret",
+      "source_tool": "gitleaks",
+      "title": "Possivel secret (slack-webhook-url) em pedidos.2a90.js",
+      "target": "https://loja-exemplo.com.br/static/js/pedidos.2a90.js",
+      "raw_evidence": {
+        "rule": "slack-webhook-url",
+        "detector": "gitleaks",
+        "js_url": "https://loja-exemplo.com.br/static/js/pedidos.2a90.js",
+        "js_sha256": "088ef2d0910a84f12eeec177735ae91bd70a13e9ce0d2ce0cf63b1e12f5d4287",
+        "line": 7,
+        "masked_secret": "http...Zr3k <redacted 79 chars>",
+        "context": "const ALERT_WEBHOOK = \"http...Zr3k <redacted 79 chars>\"; // envia alertas de pedidos para o canal #ops",
+        "entropy": 4.4
+      }
+    },
+    {
+      "id": "S-R05",
+      "expected": "true_positive",
+      "why": "chave privada RSA embutida no bundle",
+      "category": "exposed_secret",
+      "source_tool": "gitleaks",
+      "title": "Possivel secret (private-key) em assinatura.c3f1.js",
+      "target": "https://loja-exemplo.com.br/static/js/assinatura.c3f1.js",
+      "raw_evidence": {
+        "rule": "private-key",
+        "detector": "gitleaks",
+        "js_url": "https://loja-exemplo.com.br/static/js/assinatura.c3f1.js",
+        "js_sha256": "5c57490a52d420f1af44667817623319627fccfa5d450c9773d1248552c3e159",
+        "line": 3,
+        "masked_secret": "----...---- <redacted 31 chars>",
+        "context": "const SIGNING_KEY = `----...---- <redacted 31 chars>\\nMIIEpAIBAAKCAQEA...`; // assina os tokens de sessao",
+        "entropy": 3.2
+      }
+    },
+    {
+      "id": "S-R06",
+      "expected": "true_positive",
+      "why": "token de servico fixo usado em rota interna",
+      "category": "exposed_secret",
+      "source_tool": "gitleaks",
+      "title": "Possivel secret (jwt) em sync.e81a.js",
+      "target": "https://loja-exemplo.com.br/static/js/sync.e81a.js",
+      "raw_evidence": {
+        "rule": "jwt",
+        "detector": "gitleaks",
+        "js_url": "https://loja-exemplo.com.br/static/js/sync.e81a.js",
+        "js_sha256": "45ef33c6be064e04d563c4465994f609d8260798dd09ba3576b21450323a3bc9",
+        "line": 31,
+        "masked_secret": "eyJh...c3Rq <redacted 168 chars>",
+        "context": "const SERVICE_TOKEN = \"eyJh...c3Rq <redacted 168 chars>\"; fetch(\"/api/internal/sync\", { headers: { Authorization: \"Bearer \" + SERVICE_TOKEN } });",
+        "entropy": 5.3
+      }
+    },
+    {
+      "id": "S-R07",
+      "expected": "true_positive",
+      "why": "chave do SendGrid permite enviar e-mail em nome da empresa",
+      "category": "exposed_secret",
+      "source_tool": "gitleaks",
+      "title": "Possivel secret (sendgrid-api-token) em newsletter.55aa.js",
+      "target": "https://loja-exemplo.com.br/static/js/newsletter.55aa.js",
+      "raw_evidence": {
+        "rule": "sendgrid-api-token",
+        "detector": "gitleaks",
+        "js_url": "https://loja-exemplo.com.br/static/js/newsletter.55aa.js",
+        "js_sha256": "0d806138b2ee2aaa62701847c77a27e36d3ac9bc89a339b5892603476a6be7a2",
+        "line": 15,
+        "masked_secret": "SG.x...Wq0Y <redacted 69 chars>",
+        "context": "const SENDGRID_API_KEY = \"SG.x...Wq0Y <redacted 69 chars>\"; sgMail.setApiKey(SENDGRID_API_KEY);",
+        "entropy": 5.4
+      }
+    },
+    {
+      "id": "S-R08",
+      "expected": "true_positive",
+      "why": "senha do banco de producao na string de conexao",
+      "category": "exposed_secret",
+      "source_tool": "gitleaks",
+      "title": "Possivel secret (generic-api-key) em db.0b77.js",
+      "target": "https://loja-exemplo.com.br/static/js/db.0b77.js",
+      "raw_evidence": {
+        "rule": "generic-api-key",
+        "detector": "gitleaks",
+        "js_url": "https://loja-exemplo.com.br/static/js/db.0b77.js",
+        "js_sha256": "780f429ee5e2b54666a691bb7b9dabb47ca35aa1ff9950e29b6b4713c761c144",
+        "line": 9,
+        "masked_secret": "Xk9p...2wQs <redacted 24 chars>",
+        "context": "mongoose.connect(\"mongodb+srv://loja_admin:\" + \"Xk9p...2wQs <redacted 24 chars>\" + \"@cluster0.mongodb.net/loja\");",
+        "entropy": 4.5
+      }
+    },
+    {
+      "id": "S-R09",
+      "expected": "true_positive",
+      "why": "auth token do Twilio usado pelo cliente",
+      "category": "exposed_secret",
+      "source_tool": "gitleaks",
+      "title": "Possivel secret (twilio-api-key) em sms.13cd.js",
+      "target": "https://loja-exemplo.com.br/static/js/sms.13cd.js",
+      "raw_evidence": {
+        "rule": "twilio-api-key",
+        "detector": "gitleaks",
+        "js_url": "https://loja-exemplo.com.br/static/js/sms.13cd.js",
+        "js_sha256": "2230b41864e95299a94629ccd2d9241287db8fbb97a90a936a638822e378c8a3",
+        "line": 12,
+        "masked_secret": "8f3a...c21d <redacted 32 chars>",
+        "context": "const twilioAuthToken = \"8f3a...c21d <redacted 32 chars>\"; const client = twilio(accountSid, twilioAuthToken);",
+        "entropy": 3.9
+      }
+    },
+    {
+      "id": "S-R10",
+      "expected": "true_positive",
+      "why": "chave de API paga chamada direto do navegador",
+      "category": "exposed_secret",
+      "source_tool": "gitleaks",
+      "title": "Possivel secret (openai-api-key) em assistente.a4b2.js",
+      "target": "https://loja-exemplo.com.br/static/js/assistente.a4b2.js",
+      "raw_evidence": {
+        "rule": "openai-api-key",
+        "detector": "gitleaks",
+        "js_url": "https://loja-exemplo.com.br/static/js/assistente.a4b2.js",
+        "js_sha256": "d32fa7d3f3b85f3a1fcd14f479618f82df4d649fe5de407b168010e206fecf62",
+        "line": 40,
+        "masked_secret": "sk-p...H3vA <redacted 51 chars>",
+        "context": "fetch(\"https://api.openai.com/v1/chat/completions\", { headers: { Authorization: \"Bearer sk-p...H3vA <redacted 51 chars>\" } })",
+        "entropy": 5.6
+      }
+    },
+    {
+      "id": "S-R11",
+      "expected": "true_positive",
+      "why": "segredo AWS exposto em variaveis de ambiente do bundle",
+      "category": "exposed_secret",
+      "source_tool": "gitleaks",
+      "title": "Possivel secret (aws-secret-access-key) em env.c0de.js",
+      "target": "https://loja-exemplo.com.br/static/js/env.c0de.js",
+      "raw_evidence": {
+        "rule": "aws-secret-access-key",
+        "detector": "gitleaks",
+        "js_url": "https://loja-exemplo.com.br/static/js/env.c0de.js",
+        "js_sha256": "1ff57a2c184f0ca8a30aec466ff78acf5c2eb8531da4fa207f4328e3e71b9b3f",
+        "line": 2,
+        "masked_secret": "u7Gx...Pq2M <redacted 40 chars>",
+        "context": "window.__ENV__ = { AWS_SECRET_ACCESS_KEY: \"u7Gx...Pq2M <redacted 40 chars>\", BUCKET: \"loja-uploads-prod\" };",
+        "entropy": 4.8
+      }
+    },
+    {
+      "id": "S-R12",
+      "expected": "true_positive",
+      "why": "client secret OAuth nao deve ficar no front-end",
+      "category": "exposed_secret",
+      "source_tool": "gitleaks",
+      "title": "Possivel secret (gcp-client-secret) em login.77e0.js",
+      "target": "https://loja-exemplo.com.br/static/js/login.77e0.js",
+      "raw_evidence": {
+        "rule": "gcp-client-secret",
+        "detector": "gitleaks",
+        "js_url": "https://loja-exemplo.com.br/static/js/login.77e0.js",
+        "js_sha256": "0888ecb01e27b214af362036349db013196e4c094bf4222c4d35d0422109333a",
+        "line": 19,
+        "masked_secret": "GOCS...7hYw <redacted 35 chars>",
+        "context": "const oauth = { client_id: \"1234-abc.apps.googleusercontent.com\", client_secret: \"GOCS...7hYw <redacted 35 chars>\" };",
+        "entropy": 4.6
+      }
+    },
+    {
+      "id": "S-R13",
+      "expected": "true_positive",
+      "why": "senha de admin fixa em chamada autenticada",
+      "category": "exposed_secret",
+      "source_tool": "gitleaks",
+      "title": "Possivel secret (generic-api-key) em relatorios.3e3e.js",
+      "target": "https://loja-exemplo.com.br/static/js/relatorios.3e3e.js",
+      "raw_evidence": {
+        "rule": "generic-api-key",
+        "detector": "gitleaks",
+        "js_url": "https://loja-exemplo.com.br/static/js/relatorios.3e3e.js",
+        "js_sha256": "feb38ab0baaad799d715d059016a7a88f8dcf43d794628a281e389930bab44a2",
+        "line": 58,
+        "masked_secret": "Lj@2...!x7Q <redacted 16 chars>",
+        "context": "axios.get(\"/api/relatorios/financeiro\", { auth: { username: \"admin\", password: \"Lj@2...!x7Q <redacted 16 chars>\" } });",
+        "entropy": 3.8
+      }
+    },
+    {
+      "id": "S-R14",
+      "expected": "true_positive",
+      "why": "chave privada do Mailgun",
+      "category": "exposed_secret",
+      "source_tool": "gitleaks",
+      "title": "Possivel secret (mailgun-private-api-token) em email.9d9d.js",
+      "target": "https://loja-exemplo.com.br/static/js/email.9d9d.js",
+      "raw_evidence": {
+        "rule": "mailgun-private-api-token",
+        "detector": "gitleaks",
+        "js_url": "https://loja-exemplo.com.br/static/js/email.9d9d.js",
+        "js_sha256": "56ca6772295a4da47d108f74b34da9f4debecf06f40615085e17a91e1bad8779",
+        "line": 6,
+        "masked_secret": "key-...b7d2 <redacted 36 chars>",
+        "context": "const MAILGUN_KEY = \"key-...b7d2 <redacted 36 chars>\"; mailgun.client({ username: \"api\", key: MAILGUN_KEY });",
+        "entropy": 4.3
+      }
+    },
+    {
+      "id": "S-R15",
+      "expected": "true_positive",
+      "why": "token do npm com permissao de publicacao",
+      "category": "exposed_secret",
+      "source_tool": "gitleaks",
+      "title": "Possivel secret (npm-access-token) em build-info.12ab.js",
+      "target": "https://loja-exemplo.com.br/static/js/build-info.12ab.js",
+      "raw_evidence": {
+        "rule": "npm-access-token",
+        "detector": "gitleaks",
+        "js_url": "https://loja-exemplo.com.br/static/js/build-info.12ab.js",
+        "js_sha256": "e8df3ebca3ef317f6a1f527f5b350532aa4b2a5eed99f42b74803ff6441e89a7",
+        "line": 4,
+        "masked_secret": "npm_...a1B2 <redacted 40 chars>",
+        "context": "const NPM_TOKEN = \"npm_...a1B2 <redacted 40 chars>\"; // publica pacotes privados da loja",
+        "entropy": 5.0
+      }
+    },
+    {
+      "id": "S-R16",
+      "expected": "true_positive",
+      "why": "chave da API Heroku com acesso as variaveis de producao",
+      "category": "exposed_secret",
+      "source_tool": "gitleaks",
+      "title": "Possivel secret (heroku-api-key) em deploy.f00d.js",
+      "target": "https://loja-exemplo.com.br/static/js/deploy.f00d.js",
+      "raw_evidence": {
+        "rule": "heroku-api-key",
+        "detector": "gitleaks",
+        "js_url": "https://loja-exemplo.com.br/static/js/deploy.f00d.js",
+        "js_sha256": "9d389e1a8e28bc6cef4b48c16bf536b868c21a4f81402bbd008d102dc60d03ed",
+        "line": 21,
+        "masked_secret": "3c1f...9e0b <redacted 36 chars>",
+        "context": "fetch(\"https://api.heroku.com/apps/loja-prod/config-vars\", { headers: { Authorization: \"Bearer 3c1f...9e0b <redacted 36 chars>\" } })",
+        "entropy": 3.9
+      }
+    },
+    {
+      "id": "S-F01",
+      "expected": "false_positive",
+      "why": "chave de exemplo oficial da documentacao da AWS",
+      "category": "exposed_secret",
+      "source_tool": "gitleaks",
+      "title": "Possivel secret (aws-access-key-id) em docs-upload.1a1a.js",
+      "target": "https://loja-exemplo.com.br/static/js/docs-upload.1a1a.js",
+      "raw_evidence": {
+        "rule": "aws-access-key-id",
+        "detector": "gitleaks",
+        "js_url": "https://loja-exemplo.com.br/static/js/docs-upload.1a1a.js",
+        "js_sha256": "b08c7130c757e9c8fc9380f45b9746593dcea5799e844c0fb25dc4b1b296195f",
+        "line": 5,
+        "masked_secret": "AKIA...MPLE <redacted 20 chars>",
+        "context": "// Exemplo da documentacao da AWS: accessKeyId: \"AKIA...MPLE <redacted 20 chars>\"",
+        "entropy": 3.7
+      }
+    },
+    {
+      "id": "S-F02",
+      "expected": "false_positive",
+      "why": "placeholder YOUR_API_KEY",
+      "category": "exposed_secret",
+      "source_tool": "gitleaks",
+      "title": "Possivel secret (generic-api-key) em mapa.2b2b.js",
+      "target": "https://loja-exemplo.com.br/static/js/mapa.2b2b.js",
+      "raw_evidence": {
+        "rule": "generic-api-key",
+        "detector": "gitleaks",
+        "js_url": "https://loja-exemplo.com.br/static/js/mapa.2b2b.js",
+        "js_sha256": "8beb8ec6cffa33a6c520c9cf962326ef1c195b777b6c8eb48e550ffde0d6edb9",
+        "line": 11,
+        "masked_secret": "YOUR...HERE <redacted 22 chars>",
+        "context": "// substitua pela sua chave antes de usar\\nconst apiKey = \"YOUR...HERE <redacted 22 chars>\";",
+        "entropy": 3.5
+      }
+    },
+    {
+      "id": "S-F03",
+      "expected": "false_positive",
+      "why": "placeholder de x",
+      "category": "exposed_secret",
+      "source_tool": "gitleaks",
+      "title": "Possivel secret (generic-api-key) em config.3c3c.js",
+      "target": "https://loja-exemplo.com.br/static/js/config.3c3c.js",
+      "raw_evidence": {
+        "rule": "generic-api-key",
+        "detector": "gitleaks",
+        "js_url": "https://loja-exemplo.com.br/static/js/config.3c3c.js",
+        "js_sha256": "0a3a7d36ea46a7bd3e601bf9c1342688dbf3aa399eeb17748b6a8d65fbb47a8d",
+        "line": 8,
+        "masked_secret": "xxxx...xxxx <redacted 32 chars>",
+        "context": "const API_KEY = \"xxxx...xxxx <redacted 32 chars>\"; // definido no deploy",
+        "entropy": 3.6
+      }
+    },
+    {
+      "id": "S-F04",
+      "expected": "false_positive",
+      "why": "JWT de exemplo publico do jwt.io em arquivo de teste",
+      "category": "exposed_secret",
+      "source_tool": "gitleaks",
+      "title": "Possivel secret (jwt) em auth.spec.4d4d.js",
+      "target": "https://loja-exemplo.com.br/static/js/auth.spec.4d4d.js",
+      "raw_evidence": {
+        "rule": "jwt",
+        "detector": "gitleaks",
+        "js_url": "https://loja-exemplo.com.br/static/js/auth.spec.4d4d.js",
+        "js_sha256": "44afdc49ee5754ac0b5a91aebd5010640e25e161338d04a4101ce23af5b792dd",
+        "line": 17,
+        "masked_secret": "eyJh...sw5c <redacted 155 chars>",
+        "context": "// token de exemplo do jwt.io, usado nos testes\\nconst sampleToken = \"eyJh...sw5c <redacted 155 chars>\";",
+        "entropy": 5.2
+      }
+    },
+    {
+      "id": "S-F05",
+      "expected": "false_positive",
+      "why": "chave publicavel do Stripe e publica por design",
+      "category": "exposed_secret",
+      "source_tool": "gitleaks",
+      "title": "Possivel secret (stripe-access-token) em pagamento.5e5e.js",
+      "target": "https://loja-exemplo.com.br/static/js/pagamento.5e5e.js",
+      "raw_evidence": {
+        "rule": "stripe-access-token",
+        "detector": "gitleaks",
+        "js_url": "https://loja-exemplo.com.br/static/js/pagamento.5e5e.js",
+        "js_sha256": "0c4670c40440c67384419638a05d6f0712f98f2c4079e3a30f36dae432fc60b5",
+        "line": 14,
+        "masked_secret": "pk_l...3kQz <redacted 32 chars>",
+        "context": "const stripe = Stripe(\"pk_l...3kQz <redacted 32 chars>\"); // chave publicavel",
+        "entropy": 4.6
+      }
+    },
+    {
+      "id": "S-F06",
+      "expected": "false_positive",
+      "why": "hash de integridade SRI, nao e credencial",
+      "category": "exposed_secret",
+      "source_tool": "gitleaks",
+      "title": "Possivel secret (generic-api-key) em vendor.6f6f.js",
+      "target": "https://loja-exemplo.com.br/static/js/vendor.6f6f.js",
+      "raw_evidence": {
+        "rule": "generic-api-key",
+        "detector": "gitleaks",
+        "js_url": "https://loja-exemplo.com.br/static/js/vendor.6f6f.js",
+        "js_sha256": "4f9a8a26f83d3144e5786525fb36263d16e65aa9f874d40a23a212bbdb7b97e1",
+        "line": 1,
+        "masked_secret": "sha3...Wb0= <redacted 71 chars>",
+        "context": "<script src=\"/vendor.js\" integrity=\"sha3...Wb0= <redacted 71 chars>\" crossorigin=\"anonymous\">",
+        "entropy": 5.8
+      }
+    },
+    {
+      "id": "S-F07",
+      "expected": "false_positive",
+      "why": "hash de build do webpack",
+      "category": "exposed_secret",
+      "source_tool": "gitleaks",
+      "title": "Possivel secret (generic-api-key) em runtime.7a7a.js",
+      "target": "https://loja-exemplo.com.br/static/js/runtime.7a7a.js",
+      "raw_evidence": {
+        "rule": "generic-api-key",
+        "detector": "gitleaks",
+        "js_url": "https://loja-exemplo.com.br/static/js/runtime.7a7a.js",
+        "js_sha256": "a676fc7a5781deeaedf50ba3e3a451e1f30df8e0a50d30e2782d7d03777fb120",
+        "line": 1,
+        "masked_secret": "a3f9...8c1e <redacted 20 chars>",
+        "context": "__webpack_require__.h = () => (\"a3f9...8c1e <redacted 20 chars>\"); // hash do build",
+        "entropy": 3.8
+      }
+    },
+    {
+      "id": "S-F08",
+      "expected": "false_positive",
+      "why": "DSN do Sentry e publico por design",
+      "category": "exposed_secret",
+      "source_tool": "gitleaks",
+      "title": "Possivel secret (generic-api-key) em monitor.8b8b.js",
+      "target": "https://loja-exemplo.com.br/static/js/monitor.8b8b.js",
+      "raw_evidence": {
+        "rule": "generic-api-key",
+        "detector": "gitleaks",
+        "js_url": "https://loja-exemplo.com.br/static/js/monitor.8b8b.js",
+        "js_sha256": "d851416bf646c1690055f1c21fddd1b01acec37983561db489e44680a923abb2",
+        "line": 3,
+        "masked_secret": "http...4507 <redacted 74 chars>",
+        "context": "Sentry.init({ dsn: \"http...4507 <redacted 74 chars>\", tracesSampleRate: 0.1 });",
+        "entropy": 4.9
+      }
+    },
+    {
+      "id": "S-F09",
+      "expected": "false_positive",
+      "why": "texto de interface (rotulo do campo senha)",
+      "category": "exposed_secret",
+      "source_tool": "gitleaks",
+      "title": "Possivel secret (generic-api-key) em i18n.9c9c.js",
+      "target": "https://loja-exemplo.com.br/static/js/i18n.9c9c.js",
+      "raw_evidence": {
+        "rule": "generic-api-key",
+        "detector": "gitleaks",
+        "js_url": "https://loja-exemplo.com.br/static/js/i18n.9c9c.js",
+        "js_sha256": "d8cd16458f7140daf3adea111d1b0bf290d54dc302157280a0b9963f6628ab8a",
+        "line": 120,
+        "masked_secret": "Senh...res) <redacted 27 chars>",
+        "context": "labels: { password: \"Senh...res) <redacted 27 chars>\", email: \"E-mail\" }",
+        "entropy": 3.6
+      }
+    },
+    {
+      "id": "S-F10",
+      "expected": "false_positive",
+      "why": "marcador de template, nao e valor real",
+      "category": "exposed_secret",
+      "source_tool": "gitleaks",
+      "title": "Possivel secret (generic-api-key) em template.0d0d.js",
+      "target": "https://loja-exemplo.com.br/static/js/template.0d0d.js",
+      "raw_evidence": {
+        "rule": "generic-api-key",
+        "detector": "gitleaks",
+        "js_url": "https://loja-exemplo.com.br/static/js/template.0d0d.js",
+        "js_sha256": "7a549faffc953ff596fac8fffbd641ba7456d373ecde945918ab4f1109de46de",
+        "line": 9,
+        "masked_secret": "{{AU...EN}} <redacted 18 chars>",
+        "context": "const authToken = \"{{AU...EN}} <redacted 18 chars>\"; // substituido pelo servidor ao renderizar",
+        "entropy": 3.4
+      }
+    },
+    {
+      "id": "S-F11",
+      "expected": "false_positive",
+      "why": "chave search-only da Algolia e publica por design",
+      "category": "exposed_secret",
+      "source_tool": "gitleaks",
+      "title": "Possivel secret (algolia-api-key) em busca.1e1e.js",
+      "target": "https://loja-exemplo.com.br/static/js/busca.1e1e.js",
+      "raw_evidence": {
+        "rule": "algolia-api-key",
+        "detector": "gitleaks",
+        "js_url": "https://loja-exemplo.com.br/static/js/busca.1e1e.js",
+        "js_sha256": "377afd6f980db77e4053ce50998607ce94dd224fe3a948119ae02469727debd4",
+        "line": 6,
+        "masked_secret": "c9d1...a7f3 <redacted 32 chars>",
+        "context": "const client = algoliasearch(\"8ZK2LQ1M3N\", \"c9d1...a7f3 <redacted 32 chars>\"); // search-only API key (publica)",
+        "entropy": 3.9
+      }
+    },
+    {
+      "id": "S-F12",
+      "expected": "false_positive",
+      "why": "site key do reCAPTCHA e publica por design",
+      "category": "exposed_secret",
+      "source_tool": "gitleaks",
+      "title": "Possivel secret (generic-api-key) em contato.2f2f.js",
+      "target": "https://loja-exemplo.com.br/static/js/contato.2f2f.js",
+      "raw_evidence": {
+        "rule": "generic-api-key",
+        "detector": "gitleaks",
+        "js_url": "https://loja-exemplo.com.br/static/js/contato.2f2f.js",
+        "js_sha256": "59b41a8aa64e4363546c62c348951c6cd771aaed2c91d72be103ab8cd349788c",
+        "line": 22,
+        "masked_secret": "6Lc4...Hn2X <redacted 40 chars>",
+        "context": "grecaptcha.render(\"captcha\", { sitekey: \"6Lc4...Hn2X <redacted 40 chars>\" });",
+        "entropy": 4.7
+      }
+    },
+    {
+      "id": "S-F13",
+      "expected": "false_positive",
+      "why": "senha de exemplo (changeme) em comentario de documentacao",
+      "category": "exposed_secret",
+      "source_tool": "gitleaks",
+      "title": "Possivel secret (generic-api-key) em ajuda.3a3a.js",
+      "target": "https://loja-exemplo.com.br/static/js/ajuda.3a3a.js",
+      "raw_evidence": {
+        "rule": "generic-api-key",
+        "detector": "gitleaks",
+        "js_url": "https://loja-exemplo.com.br/static/js/ajuda.3a3a.js",
+        "js_sha256": "136872cbfe051809ba0d7cc7b4c3cb1c63988bdca87d3bb2cd26c230cb8a4f74",
+        "line": 44,
+        "masked_secret": "chan...eme <redacted 8 chars>",
+        "context": "// exemplo de payload de login: { \"user\": \"demo\", \"password\": \"chan...eme <redacted 8 chars>\" }",
+        "entropy": 2.8
+      }
+    },
+    {
+      "id": "S-F14",
+      "expected": "false_positive",
+      "why": "placeholder com X",
+      "category": "exposed_secret",
+      "source_tool": "gitleaks",
+      "title": "Possivel secret (aws-access-key-id) em setup.4b4b.js",
+      "target": "https://loja-exemplo.com.br/static/js/setup.4b4b.js",
+      "raw_evidence": {
+        "rule": "aws-access-key-id",
+        "detector": "gitleaks",
+        "js_url": "https://loja-exemplo.com.br/static/js/setup.4b4b.js",
+        "js_sha256": "c863c28220fa97ecd90bd25f281d313d14fc42bf6ea2ad3280a99fc990be47b4",
+        "line": 3,
+        "masked_secret": "AKIA...XXXX <redacted 20 chars>",
+        "context": "// preencha com a sua chave: aws_access_key_id = \"AKIA...XXXX <redacted 20 chars>\"",
+        "entropy": 1.9
+      }
+    },
+    {
+      "id": "S-F15",
+      "expected": "false_positive",
+      "why": "chave publica VAPID de web push",
+      "category": "exposed_secret",
+      "source_tool": "gitleaks",
+      "title": "Possivel secret (generic-api-key) em push.5c5c.js",
+      "target": "https://loja-exemplo.com.br/static/js/push.5c5c.js",
+      "raw_evidence": {
+        "rule": "generic-api-key",
+        "detector": "gitleaks",
+        "js_url": "https://loja-exemplo.com.br/static/js/push.5c5c.js",
+        "js_sha256": "aa33a799715237b977669dfa4c58f6acdac99814f608fadce4abd6e5c731c69c",
+        "line": 10,
+        "masked_secret": "BEl6...Lp8Q <redacted 87 chars>",
+        "context": "const PUBLIC_VAPID_KEY = \"BEl6...Lp8Q <redacted 87 chars>\"; registration.pushManager.subscribe({ applicationServerKey: PUBLIC_VAPID_KEY });",
+        "entropy": 5.7
+      }
+    },
+    {
+      "id": "S-F16",
+      "expected": "false_positive",
+      "why": "ID de medicao do Google Analytics e publico",
+      "category": "exposed_secret",
+      "source_tool": "gitleaks",
+      "title": "Possivel secret (generic-api-key) em analytics.6d6d.js",
+      "target": "https://loja-exemplo.com.br/static/js/analytics.6d6d.js",
+      "raw_evidence": {
+        "rule": "generic-api-key",
+        "detector": "gitleaks",
+        "js_url": "https://loja-exemplo.com.br/static/js/analytics.6d6d.js",
+        "js_sha256": "8c481926a3e7bb3e0c4904c633ee46f279f064440d8024d37cd65cf5f68a9158",
+        "line": 2,
+        "masked_secret": "G-7Q...3MZ1 <redacted 12 chars>",
+        "context": "gtag(\"config\", \"G-7Q...3MZ1 <redacted 12 chars>\"); // Google Analytics",
+        "entropy": 3.3
+      }
+    },
+    {
+      "id": "E-R01",
+      "expected": "true_positive",
+      "why": "rotas administrativas sensiveis (exportar usuarios, impersonar) expostas",
+      "category": "exposed_endpoint",
+      "source_tool": "endpoint-regex",
+      "title": "3 endpoint(s) extraido(s) de admin.chunk.81f0.js",
+      "target": "https://loja-exemplo.com.br/static/js/admin.chunk.81f0.js",
+      "raw_evidence": {
+        "js_url": "https://loja-exemplo.com.br/static/js/admin.chunk.81f0.js",
+        "js_sha256": "21916e118dc7b6c030ab9017cd48880505a7613eae41894dbfd690187cc93c29",
+        "endpoints": [
+          "/api/v1/admin/users/export",
+          "/api/v1/admin/impersonate",
+          "/api/v1/produtos"
+        ]
+      }
+    },
+    {
+      "id": "E-R02",
+      "expected": "true_positive",
+      "why": "rotas de debug que podem vazar variaveis de ambiente e memoria",
+      "category": "exposed_endpoint",
+      "source_tool": "endpoint-regex",
+      "title": "2 endpoint(s) extraido(s) de debug.c4c4.js",
+      "target": "https://loja-exemplo.com.br/static/js/debug.c4c4.js",
+      "raw_evidence": {
+        "js_url": "https://loja-exemplo.com.br/static/js/debug.c4c4.js",
+        "js_sha256": "3b7053a6c5ad37fa28de8ac737c5fb85d4338273f4ae111d3578ecf80433ea18",
+        "endpoints": [
+          "/internal/debug/env",
+          "/internal/debug/heapdump"
+        ]
+      }
+    },
+    {
+      "id": "E-R03",
+      "expected": "true_positive",
+      "why": "endpoints de actuator expostos (env e heapdump)",
+      "category": "exposed_endpoint",
+      "source_tool": "endpoint-regex",
+      "title": "3 endpoint(s) extraido(s) de metrics.d5d5.js",
+      "target": "https://loja-exemplo.com.br/static/js/metrics.d5d5.js",
+      "raw_evidence": {
+        "js_url": "https://loja-exemplo.com.br/static/js/metrics.d5d5.js",
+        "js_sha256": "e0bd4763f200c0dfe790cff06ca5a1dcf5c6504c15a1d778f6dde137b712451c",
+        "endpoints": [
+          "/actuator/env",
+          "/actuator/heapdump",
+          "/actuator/health"
+        ]
+      }
+    },
+    {
+      "id": "E-R04",
+      "expected": "true_positive",
+      "why": "download de backup do banco e playground GraphQL expostos",
+      "category": "exposed_endpoint",
+      "source_tool": "endpoint-regex",
+      "title": "2 endpoint(s) extraido(s) de backup.e6e6.js",
+      "target": "https://loja-exemplo.com.br/static/js/backup.e6e6.js",
+      "raw_evidence": {
+        "js_url": "https://loja-exemplo.com.br/static/js/backup.e6e6.js",
+        "js_sha256": "5f5d5bfd71bbfd48e9cc0f0cccc9acaf88a20eb0cb65cd668e5b6849fccdadf5",
+        "endpoints": [
+          "/graphql/playground",
+          "/api/backup/download?file=db.sql"
+        ]
+      }
+    },
+    {
+      "id": "E-F01",
+      "expected": "false_positive",
+      "why": "arquivos estaticos publicos",
+      "category": "exposed_endpoint",
+      "source_tool": "endpoint-regex",
+      "title": "3 endpoint(s) extraido(s) de assets.f7f7.js",
+      "target": "https://loja-exemplo.com.br/static/js/assets.f7f7.js",
+      "raw_evidence": {
+        "js_url": "https://loja-exemplo.com.br/static/js/assets.f7f7.js",
+        "js_sha256": "b2f1c85a3ca41f0c0e9133e04d20f51020700cc2a6a72629acbc1a87d56e1b73",
+        "endpoints": [
+          "/static/img/logo.png",
+          "/static/css/main.css",
+          "/favicon.ico"
+        ]
+      }
+    },
+    {
+      "id": "E-F02",
+      "expected": "false_positive",
+      "why": "API publica do catalogo, usada pela propria pagina",
+      "category": "exposed_endpoint",
+      "source_tool": "endpoint-regex",
+      "title": "3 endpoint(s) extraido(s) de catalogo.a8a8.js",
+      "target": "https://loja-exemplo.com.br/static/js/catalogo.a8a8.js",
+      "raw_evidence": {
+        "js_url": "https://loja-exemplo.com.br/static/js/catalogo.a8a8.js",
+        "js_sha256": "10d2de86841ba18e2f944855b7602597ad38b3bbc1f32b65e28a445a4ff00857",
+        "endpoints": [
+          "/api/v1/produtos",
+          "/api/v1/categorias",
+          "/api/v1/busca"
+        ]
+      }
+    },
+    {
+      "id": "E-F03",
+      "expected": "false_positive",
+      "why": "servicos de terceiros comuns",
+      "category": "exposed_endpoint",
+      "source_tool": "endpoint-regex",
+      "title": "2 endpoint(s) extraido(s) de tags.b9b9.js",
+      "target": "https://loja-exemplo.com.br/static/js/tags.b9b9.js",
+      "raw_evidence": {
+        "js_url": "https://loja-exemplo.com.br/static/js/tags.b9b9.js",
+        "js_sha256": "e91aa5041752c4476ec7858ee7c5828e9ebd5b3d63cf6c197864baf8a528f543",
+        "endpoints": [
+          "https://www.googletagmanager.com/gtag/js",
+          "https://fonts.googleapis.com/css2"
+        ]
+      }
+    },
+    {
+      "id": "E-F04",
+      "expected": "false_positive",
+      "why": "paginas institucionais publicas",
+      "category": "exposed_endpoint",
+      "source_tool": "endpoint-regex",
+      "title": "3 endpoint(s) extraido(s) de institucional.cacb.js",
+      "target": "https://loja-exemplo.com.br/static/js/institucional.cacb.js",
+      "raw_evidence": {
+        "js_url": "https://loja-exemplo.com.br/static/js/institucional.cacb.js",
+        "js_sha256": "a59e89e7f28eb6d85adb2bd4b3599bf467abd3c01116d13bc564ea38e5007007",
+        "endpoints": [
+          "/sobre",
+          "/contato",
+          "/politica-de-privacidade"
+        ]
+      }
+    }
+  ]
+}
