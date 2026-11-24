@@ -96,3 +96,47 @@ def test_preserva_url_e_metadados_sem_credenciais():
     }
 
     assert redact_evidence(evidence) == evidence
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "aws-access-key-id",  # nome de regra do gitleaks
+        "stripe-access-token",
+        "X-Content-Type-Options",  # nome de cabecalho de seguranca
+        "Strict-Transport-Security",
+        "recon-lab-site.onrender.com",  # dominio
+        "ip-172-31-23-214.ec2.internal",
+    ],
+)
+def test_nomes_tecnicos_nao_sao_mascarados(value):
+    evidence = {"rule": value, "missing": [value], "target": value}
+    assert redact_evidence(evidence) == evidence
+
+
+def test_hash_do_arquivo_nao_e_mascarado():
+    sha = "604b3f1d2c9e8a7b6c5d4e3f2a1b0c9d8e7f6a5b4c3d2e1f0a9b8c7d6e5f0b92"
+    evidence = {"js_sha256": sha, "sha256": sha}
+    assert redact_evidence(evidence) == evidence
+
+
+@pytest.mark.parametrize(
+    "secret",
+    [
+        "Xk9pT2wQs8vLm3nR4bZy",  # token aleatorio solto
+        "wJalrXUtnFEMI2K7MDENGbPxRfiCYEXAMPLEKEY",
+        "3c1f8e2a9d4b7c6e5f0a1b2c3d4e9e0b",
+    ],
+)
+def test_texto_aleatorio_com_letras_e_digitos_continua_mascarado(secret):
+    # valor solto num campo qualquer (segredos dentro de codigo ja chegam
+    # mascarados pelo js_scanner e pelos padroes conhecidos)
+    redacted = redact_evidence({"leaked": secret, "list": [secret]})
+    assert secret not in str(redacted)
+
+
+def test_relatorio_mostra_quais_cabecalhos_faltam():
+    evidence = {"missing": ["Content-Security-Policy", "Permissions-Policy"], "rule": "aws-access-token"}
+    text = str(redact_evidence(evidence))
+    assert "Content-Security-Policy" in text and "Permissions-Policy" in text
+    assert "aws-access-token" in text and "<redacted" not in text
