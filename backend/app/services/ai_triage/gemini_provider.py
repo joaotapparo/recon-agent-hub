@@ -65,6 +65,19 @@ def _normalize(parsed: _GeminiTriageResponse) -> TriageResult:
     )
 
 
+def filter_results(
+    results: list[_GeminiTriageResponse], findings: list[Finding]
+) -> list[_GeminiTriageResponse]:
+    """Descarta id repetido ou que nao foi pedido: nao da pra confiar, vai pra revisao."""
+    counts = Counter(result.finding_id for result in results)
+    expected = {finding.id for finding in findings}
+    return [
+        result
+        for result in results
+        if counts[result.finding_id] == 1 and result.finding_id in expected
+    ]
+
+
 class GeminiTriageProvider:
     def __init__(
         self, api_key: str | None = None, models: list[str] | None = None
@@ -88,13 +101,9 @@ class GeminiTriageProvider:
             raise RuntimeError("Gemini devolveu resposta vazia na triagem")
 
         results = _GeminiTriageBatch.model_validate_json(response.text).results
-        counts = Counter(result.finding_id for result in results)
-        expected = {finding.id for finding in findings}
-        # id repetido ou que nao foi pedido nao da pra confiar - fica sem resultado e vai pra revisao
         return {
             result.finding_id: _normalize(result)
-            for result in results
-            if counts[result.finding_id] == 1 and result.finding_id in expected
+            for result in filter_results(results, findings)
         }
 
     async def generate_report(
