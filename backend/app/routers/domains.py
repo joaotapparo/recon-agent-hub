@@ -150,7 +150,8 @@ def _scan_summary(job: ScanJob) -> ScanSummaryOut:
 
 
 def _to_domain_out(domain: Domain) -> DomainOut:
-    latest = max(domain.scan_jobs, key=lambda j: j.created_at, default=None)
+    # created_at tem precisao de segundos: o id desempata reanalises no mesmo segundo
+    latest = max(domain.scan_jobs, key=lambda j: (j.created_at, j.id), default=None)
     verified = domain_verification.is_verified(domain)
     challenge = None
     if not verified and domain.verification_token:
