@@ -1,0 +1,1377 @@
+{
+  "generated_at": "2026-11-24 17:20",
+  "models": [
+    "claude-opus-5-5",
+    "claude-opus-5-5",
+    "claude-opus-5-5"
+  ],
+  "cases_by_label": {
+    "true_positive": 20,
+    "false_positive": 20
+  },
+  "expected_by_id": {
+    "S-R01": "true_positive",
+    "S-R02": "true_positive",
+    "S-R03": "true_positive",
+    "S-R04": "true_positive",
+    "S-R05": "true_positive",
+    "S-R06": "true_positive",
+    "S-R07": "true_positive",
+    "S-R08": "true_positive",
+    "S-R09": "true_positive",
+    "S-R10": "true_positive",
+    "S-R11": "true_positive",
+    "S-R12": "true_positive",
+    "S-R13": "true_positive",
+    "S-R14": "true_positive",
+    "S-R15": "true_positive",
+    "S-R16": "true_positive",
+    "S-F01": "false_positive",
+    "S-F02": "false_positive",
+    "S-F03": "false_positive",
+    "S-F04": "false_positive",
+    "S-F05": "false_positive",
+    "S-F06": "false_positive",
+    "S-F07": "false_positive",
+    "S-F08": "false_positive",
+    "S-F09": "false_positive",
+    "S-F10": "false_positive",
+    "S-F11": "false_positive",
+    "S-F12": "false_positive",
+    "S-F13": "false_positive",
+    "S-F14": "false_positive",
+    "S-F15": "false_positive",
+    "S-F16": "false_positive",
+    "E-R01": "true_positive",
+    "E-R02": "true_positive",
+    "E-R03": "true_positive",
+    "E-R04": "true_positive",
+    "E-F01": "false_positive",
+    "E-F02": "false_positive",
+    "E-F03": "false_positive",
+    "E-F04": "false_positive"
+  },
+  "runs": [
+    {
+      "total": 40,
+      "confusion_matrix": {
+        "true_positive": {
+          "true_positive": 16,
+          "false_positive": 0,
+          "needs_review": 4
+        },
+        "false_positive": {
+          "true_positive": 0,
+          "false_positive": 18,
+          "needs_review": 2
+        }
+      },
+      "accuracy": 0.85,
+      "accuracy_decided": 1.0,
+      "precision": 1.0,
+      "recall": 0.8,
+      "specificity": 0.9,
+      "coverage": 0.85,
+      "dangerous_misses": 0,
+      "dangerous_miss_rate": 0.0,
+      "api_failures": 0
+    },
+    {
+      "total": 40,
+      "confusion_matrix": {
+        "true_positive": {
+          "true_positive": 15,
+          "false_positive": 0,
+          "needs_review": 5
+        },
+        "false_positive": {
+          "true_positive": 0,
+          "false_positive": 18,
+          "needs_review": 2
+        }
+      },
+      "accuracy": 0.825,
+      "accuracy_decided": 1.0,
+      "precision": 1.0,
+      "recall": 0.75,
+      "specificity": 0.9,
+      "coverage": 0.825,
+      "dangerous_misses": 0,
+      "dangerous_miss_rate": 0.0,
+      "api_failures": 0
+    },
+    {
+      "total": 40,
+      "confusion_matrix": {
+        "true_positive": {
+          "true_positive": 16,
+          "false_positive": 0,
+          "needs_review": 4
+        },
+        "false_positive": {
+          "true_positive": 0,
+          "false_positive": 18,
+          "needs_review": 2
+        }
+      },
+      "accuracy": 0.85,
+      "accuracy_decided": 1.0,
+      "precision": 1.0,
+      "recall": 0.8,
+      "specificity": 0.9,
+      "coverage": 0.85,
+      "dangerous_misses": 0,
+      "dangerous_miss_rate": 0.0,
+      "api_failures": 0
+    }
+  ],
+  "predictions": [
+    [
+      {
+        "id": "S-R01",
+        "category": "exposed_secret",
+        "expected": "true_positive",
+        "predicted": "true_positive",
+        "severity": "high",
+        "confidence": 0.8,
+        "reasoning": "Um par de credenciais AWS (accessKeyId com prefixo AKIA e secretAccessKey) aparece hardcoded em um bundle JavaScript público, usado para instanciar AWS.S3 na região sa-east-1. Esse formato e esse uso indicam credencial IAM de longa duração exposta a qualquer visitante. A validade e as permissões não foram verificadas, mas a exposição em si é real.",
+        "api_failure": false
+      },
+      {
+        "id": "S-R02",
+        "category": "exposed_secret",
+        "expected": "true_positive",
+        "predicted": "true_positive",
+        "severity": "high",
+        "confidence": 0.8,
+        "reasoning": "Um GitHub Personal Access Token (ghp_) está embutido em um JS público e é usado para disparar repository_dispatch no repositório loja/infra. Isso indica permissão de escrita ou de acionamento de workflows em um repositório de infraestrutura. A validade e o escopo não foram confirmados.",
+        "api_failure": false
+      },
+      {
+        "id": "S-R03",
+        "category": "exposed_secret",
+        "expected": "true_positive",
+        "predicted": "true_positive",
+        "severity": "high",
+        "confidence": 0.8,
+        "reasoning": "Uma chave secreta Stripe (prefixo sk_l, compatível com sk_live) está hardcoded em um JS público de checkout, com o comentário 'cobranca direta'. Chaves secretas Stripe permitem operações financeiras e acesso a dados de clientes e jamais devem estar no frontend. A validade não foi verificada.",
+        "api_failure": false
+      },
+      {
+        "id": "S-R04",
+        "category": "exposed_secret",
+        "expected": "true_positive",
+        "predicted": "true_positive",
+        "severity": "medium",
+        "confidence": 0.75,
+        "reasoning": "Uma URL de Incoming Webhook do Slack está exposta em um JS público e é usada para alertas de pedidos no canal #ops. Quem obtiver a URL pode postar mensagens arbitrárias no canal, o que abre espaço para spam e phishing interno. O webhook não dá acesso de leitura. A validade não foi verificada.",
+        "api_failure": false
+      },
+      {
+        "id": "S-R05",
+        "category": "exposed_secret",
+        "expected": "true_positive",
+        "predicted": "true_positive",
+        "severity": "critical",
+        "confidence": 0.8,
+        "reasoning": "Uma chave privada (cabeçalho PEM seguido de MIIEpAIBAAKCAQEA, típico de uma chave RSA privada) está embutida em um JS público e, segundo o comentário, assina os tokens de sessão. Se for a chave em uso, qualquer pessoa pode forjar sessões válidas, inclusive de administradores. A validade não foi confirmada.",
+        "api_failure": false
+      },
+      {
+        "id": "S-R06",
+        "category": "exposed_secret",
+        "expected": "true_positive",
+        "predicted": "true_positive",
+        "severity": "medium",
+        "confidence": 0.65,
+        "reasoning": "Um JWT identificado como SERVICE_TOKEN está hardcoded em um JS público e é enviado como Bearer para /api/internal/sync. Isso sugere uma credencial de serviço para um endpoint interno exposta a todos os visitantes. Expiração, escopo e validade são desconhecidos, por isso o impacto exato não pode ser confirmado.",
+        "api_failure": false
+      },
+      {
+        "id": "S-R07",
+        "category": "exposed_secret",
+        "expected": "true_positive",
+        "predicted": "true_positive",
+        "severity": "high",
+        "confidence": 0.8,
+        "reasoning": "Uma API key do SendGrid (prefixo SG.) está hardcoded em um JS público e é passada a sgMail.setApiKey. Com ela é possível enviar e-mails em nome do domínio, viabilizando phishing, e possivelmente acessar dados de contatos, conforme o escopo. A validade não foi verificada.",
+        "api_failure": false
+      },
+      {
+        "id": "S-R08",
+        "category": "exposed_secret",
+        "expected": "true_positive",
+        "predicted": "true_positive",
+        "severity": "high",
+        "confidence": 0.8,
+        "reasoning": "Uma string de conexão MongoDB Atlas com o usuário loja_admin e a respectiva senha está exposta em um JS público. Se estiver válida e o cluster aceitar conexões externas, permite acesso administrativo ao banco 'loja'. Não há confirmação de validade nem de restrição de rede.",
+        "api_failure": false
+      },
+      {
+        "id": "S-R09",
+        "category": "exposed_secret",
+        "expected": "true_positive",
+        "predicted": "true_positive",
+        "severity": "high",
+        "confidence": 0.75,
+        "reasoning": "Um Auth Token do Twilio (32 caracteres hexadecimais) está hardcoded em um JS público e é usado com accountSid para criar o cliente Twilio. Isso permite enviar SMS e fazer chamadas cobrados na conta, além de acessar logs de mensagens. A validade não foi verificada.",
+        "api_failure": false
+      },
+      {
+        "id": "S-R10",
+        "category": "exposed_secret",
+        "expected": "true_positive",
+        "predicted": "true_positive",
+        "severity": "medium",
+        "confidence": 0.75,
+        "reasoning": "Uma API key da OpenAI (sk-p..., compatível com uma project key) é enviada diretamente do navegador para api.openai.com em um JS público. Qualquer visitante pode extraí-la e consumir a cota, gerando custos e possível acesso a recursos do projeto. A validade não foi verificada.",
+        "api_failure": false
+      },
+      {
+        "id": "S-R11",
+        "category": "exposed_secret",
+        "expected": "true_positive",
+        "predicted": "true_positive",
+        "severity": "high",
+        "confidence": 0.8,
+        "reasoning": "Um valor atribuído a AWS_SECRET_ACCESS_KEY aparece em um bundle JavaScript público, dentro de window.__ENV__, ao lado de um bucket com sufixo de produção (loja-uploads-prod). A entropia é alta (4.8) e não há nenhum indício de placeholder ou exemplo. Expor uma secret key da AWS no cliente é falha grave, mesmo sem confirmação de que a credencial está ativa. A severidade considera o risco de acesso ao bucket de produção, que não foi verificado.",
+        "api_failure": false
+      },
+      {
+        "id": "S-R12",
+        "category": "exposed_secret",
+        "expected": "true_positive",
+        "predicted": "true_positive",
+        "severity": "medium",
+        "confidence": 0.75,
+        "reasoning": "Um client_secret OAuth do Google, com prefixo compatível com GOCS e associado a um client_id .apps.googleusercontent.com, está embutido no JavaScript público de login. O client_secret não deve ficar no navegador: ele permite que terceiros se passem pelo cliente OAuth em fluxos que dependem do secret. O impacto direto depende da configuração do cliente, que não foi verificada.",
+        "api_failure": false
+      },
+      {
+        "id": "S-R13",
+        "category": "exposed_secret",
+        "expected": "true_positive",
+        "predicted": "true_positive",
+        "severity": "high",
+        "confidence": 0.6,
+        "reasoning": "O bundle público tem uma chamada real, e não comentário, ao endpoint /api/relatorios/financeiro com Basic Auth e usuário 'admin' fixo no código, além de uma senha embutida. O valor está totalmente mascarado e não foi possível descartar um placeholder. Mesmo assim, o contexto indica uma credencial administrativa hardcoded no cliente para dados financeiros. A validade da senha não foi confirmada.",
+        "api_failure": false
+      },
+      {
+        "id": "S-R14",
+        "category": "exposed_secret",
+        "expected": "true_positive",
+        "predicted": "true_positive",
+        "severity": "high",
+        "confidence": 0.8,
+        "reasoning": "Uma chave privada da Mailgun, com prefixo key- e usada com username 'api' em mailgun.client, está exposta no JavaScript público. Esse tipo de chave pode permitir o envio de e-mails em nome do domínio (phishing) e o acesso a logs, conforme as permissões da conta. A validade não foi confirmada.",
+        "api_failure": false
+      },
+      {
+        "id": "S-R15",
+        "category": "exposed_secret",
+        "expected": "true_positive",
+        "predicted": "true_positive",
+        "severity": "high",
+        "confidence": 0.8,
+        "reasoning": "Um token npm (prefixo npm_, entropia 5.0) está em um bundle público. O comentário diz que ele publica pacotes privados da loja. Se o token estiver ativo, há risco de cadeia de suprimentos: leitura e publicação maliciosa de pacotes. A validade e o escopo não foram confirmados.",
+        "api_failure": false
+      },
+      {
+        "id": "S-R16",
+        "category": "exposed_secret",
+        "expected": "true_positive",
+        "predicted": "true_positive",
+        "severity": "high",
+        "confidence": 0.8,
+        "reasoning": "Um bearer token, compatível com Heroku API key, é usado no frontend em uma chamada a api.heroku.com/apps/loja-prod/config-vars. Esse endpoint costuma conter todos os secrets da aplicação de produção, e a chave pode permitir gerenciar o app. A validade não foi confirmada, mas a exposição no cliente é grave.",
+        "api_failure": false
+      },
+      {
+        "id": "S-F01",
+        "category": "exposed_secret",
+        "expected": "false_positive",
+        "predicted": "false_positive",
+        "severity": null,
+        "confidence": 0.9,
+        "reasoning": "O valor mascarado começa com AKIA e termina com MPLE, padrão da chave de exemplo da documentação da AWS (sufixo EXAMPLE). O próprio comentário diz que é um exemplo da documentação. É ruído conhecido.",
+        "api_failure": false
+      },
+      {
+        "id": "S-F02",
+        "category": "exposed_secret",
+        "expected": "false_positive",
+        "predicted": "false_positive",
+        "severity": null,
+        "confidence": 0.65,
+        "reasoning": "O comentário 'substitua pela sua chave antes de usar' indica um placeholder, e a entropia é baixa (3.5). Como o valor está totalmente mascarado, não dá para descartar que uma chave real tenha sido inserida sem remover o comentário. Mesmo assim, o contexto indica ruído.",
+        "api_failure": false
+      },
+      {
+        "id": "S-F03",
+        "category": "exposed_secret",
+        "expected": "false_positive",
+        "predicted": "needs_review",
+        "severity": null,
+        "confidence": 0.5,
+        "reasoning": "O comentário 'definido no deploy' sugere que o valor é injetado no build e pode ser uma chave real. O valor está totalmente mascarado e não há indicação do serviço nem do tipo de chave. Ela pode ser uma chave pública de frontend, sem risco, ou uma chave sensível. Não há contexto suficiente para decidir.",
+        "api_failure": false
+      },
+      {
+        "id": "S-F04",
+        "category": "exposed_secret",
+        "expected": "false_positive",
+        "predicted": "false_positive",
+        "severity": null,
+        "confidence": 0.85,
+        "reasoning": "O comentário identifica o JWT como o token de exemplo do jwt.io usado em testes, em um arquivo .spec. O token de exemplo do jwt.io é público e não autentica em sistemas reais. Servir arquivos de teste em produção é só higiene, não exposição de credencial.",
+        "api_failure": false
+      },
+      {
+        "id": "S-F05",
+        "category": "exposed_secret",
+        "expected": "false_positive",
+        "predicted": "false_positive",
+        "severity": null,
+        "confidence": 0.9,
+        "reasoning": "O valor mascarado começa com o prefixo 'pk_l', compatível com uma chave publicável (publishable key) do Stripe, passada para Stripe() no frontend. Esse tipo de chave foi feito para ficar exposto no cliente e não permite operações privilegiadas. Pelo prefixo visível, não há indício de chave secreta (sk_) ou restrita (rk_).",
+        "api_failure": false
+      },
+      {
+        "id": "S-F06",
+        "category": "exposed_secret",
+        "expected": "false_positive",
+        "predicted": "false_positive",
+        "severity": null,
+        "confidence": 0.95,
+        "reasoning": "O contexto mostra um atributo integrity de Subresource Integrity (SRI) em uma tag script, com valor iniciado por 'sha3' (provavelmente sha384). É um hash criptográfico público do recurso, não uma credencial. A alta entropia é esperada nesse caso.",
+        "api_failure": false
+      },
+      {
+        "id": "S-F07",
+        "category": "exposed_secret",
+        "expected": "false_positive",
+        "predicted": "false_positive",
+        "severity": null,
+        "confidence": 0.9,
+        "reasoning": "O valor é retornado por __webpack_require__.h, função do runtime do webpack que expõe o hash da compilação. É um identificador de build público e sem valor como credencial.",
+        "api_failure": false
+      },
+      {
+        "id": "S-F08",
+        "category": "exposed_secret",
+        "expected": "false_positive",
+        "predicted": "false_positive",
+        "severity": null,
+        "confidence": 0.8,
+        "reasoning": "O valor é o DSN usado em Sentry.init no frontend. DSNs do Sentry para uso no navegador contêm apenas uma chave pública de ingestão e foram feitos para ficar expostos no cliente. Não dão acesso de leitura aos dados do projeto. O único abuso possível é o envio de eventos espúrios, que é mitigado por configuração do próprio Sentry (allowed domains, rate limits).",
+        "api_failure": false
+      },
+      {
+        "id": "S-F09",
+        "category": "exposed_secret",
+        "expected": "false_positive",
+        "predicted": "false_positive",
+        "severity": null,
+        "confidence": 0.85,
+        "reasoning": "O contexto é um objeto de rótulos de internacionalização (labels) em um arquivo i18n, ao lado de email: \"E-mail\". O valor de password é quase certamente o texto do rótulo do campo de senha exibido na interface, não uma credencial. A baixa entropia reforça essa leitura.",
+        "api_failure": false
+      },
+      {
+        "id": "S-F10",
+        "category": "exposed_secret",
+        "expected": "false_positive",
+        "predicted": "false_positive",
+        "severity": null,
+        "confidence": 0.85,
+        "reasoning": "O valor é um placeholder de template no formato {{...}} (aparentemente algo como {{AUTH_TOKEN}}), feito para ser substituído na renderização. No arquivo estático ele aparece não renderizado, então não contém um token real.",
+        "api_failure": false
+      },
+      {
+        "id": "S-F11",
+        "category": "exposed_secret",
+        "expected": "false_positive",
+        "predicted": "needs_review",
+        "severity": null,
+        "confidence": 0.6,
+        "reasoning": "Há uma chave Algolia de 32 caracteres usada com algoliasearch no frontend, ao lado do Application ID. Esse padrão é típico de search-only API keys, que são públicas por design. Porém, o único indício de que a chave é search-only é um comentário no próprio código, que não é confiável, e Admin API keys têm o mesmo formato. Sem confirmar as ACLs da chave no painel da Algolia, não dá para descartar a exposição de uma chave com permissões de escrita ou administração.",
+        "api_failure": false
+      },
+      {
+        "id": "S-F12",
+        "category": "exposed_secret",
+        "expected": "false_positive",
+        "predicted": "false_positive",
+        "severity": null,
+        "confidence": 0.9,
+        "reasoning": "O valor é o sitekey passado para grecaptcha.render. O site key do reCAPTCHA é público por design e precisa estar no frontend. O que deve ficar protegido é o secret key, usado apenas no servidor, e ele não aparece aqui.",
+        "api_failure": false
+      },
+      {
+        "id": "S-F13",
+        "category": "exposed_secret",
+        "expected": "false_positive",
+        "predicted": "false_positive",
+        "severity": null,
+        "confidence": 0.75,
+        "reasoning": "O valor está em um comentário que descreve um exemplo de payload de login, com usuário 'demo', em um arquivo de ajuda. A baixa entropia (2.8) indica um valor ilustrativo, não uma credencial real. A evidência não mostra que a conta 'demo' exista ou que essa senha seja válida.",
+        "api_failure": false
+      },
+      {
+        "id": "S-F14",
+        "category": "exposed_secret",
+        "expected": "false_positive",
+        "predicted": "false_positive",
+        "severity": null,
+        "confidence": 0.9,
+        "reasoning": "O valor está em um comentário de instrução ('preencha com a sua chave') e termina em 'XXXX'. A entropia é muito baixa (1.9), típica de placeholder e não de um Access Key ID real da AWS. Também não há secret access key associado no contexto.",
+        "api_failure": false
+      },
+      {
+        "id": "S-F15",
+        "category": "exposed_secret",
+        "expected": "false_positive",
+        "predicted": "false_positive",
+        "severity": null,
+        "confidence": 0.93,
+        "reasoning": "O valor está atribuído a PUBLIC_VAPID_KEY e é usado como applicationServerKey em registration.pushManager.subscribe, que é o uso padrão da chave pública VAPID do Web Push. Essa chave foi feita para ser exposta no cliente. O prefixo 'B' e o tamanho (~87 caracteres em base64url) são compatíveis com uma chave pública P-256 não comprimida. A alta entropia acionou a regra generic-api-key, mas o contexto indica valor público, e não um segredo. A chave privada VAPID não aparece na evidência.",
+        "api_failure": false
+      },
+      {
+        "id": "S-F16",
+        "category": "exposed_secret",
+        "expected": "false_positive",
+        "predicted": "false_positive",
+        "severity": null,
+        "confidence": 0.95,
+        "reasoning": "O valor tem o formato de um Measurement ID do Google Analytics 4 (prefixo G-) e é usado em gtag(\"config\", ...), com o comentário '// Google Analytics'. Esse identificador é público por natureza e fica embutido no front-end de qualquer site que use GA4. Ele não é uma credencial e não dá acesso a dados. A entropia baixa (3.3) também é compatível com um identificador, e não com um segredo.",
+        "api_failure": false
+      },
+      {
+        "id": "E-R01",
+        "category": "exposed_endpoint",
+        "expected": "true_positive",
+        "predicted": "needs_review",
+        "severity": null,
+        "confidence": 0.6,
+        "reasoning": "O chunk admin.chunk.81f0.js é servido publicamente e referencia três rotas /api/... (valores parcialmente mascarados). Em SPAs é comum o bundle administrativo conter rotas que exigem autenticação no backend. A evidência mostra apenas que as rotas aparecem no JavaScript; não há resposta HTTP que comprove acesso sem autenticação ou falha de autorização. Recomenda-se verificar manualmente se essas rotas aplicam controle de acesso.",
+        "api_failure": false
+      },
+      {
+        "id": "E-R02",
+        "category": "exposed_endpoint",
+        "expected": "true_positive",
+        "predicted": "needs_review",
+        "severity": null,
+        "confidence": 0.6,
+        "reasoning": "O arquivo debug.c4c4.js, publicado em produção, referencia rotas internas aparentemente sensíveis: /int.../env e /int...dump, possivelmente de variáveis de ambiente e de dump. Isso é um forte indicador para investigação. Porém a evidência contém apenas a menção no JS, sem resposta do servidor que comprove que os endpoints existem e estão acessíveis sem autenticação. Validar com prioridade.",
+        "api_failure": false
+      },
+      {
+        "id": "E-R03",
+        "category": "exposed_endpoint",
+        "expected": "true_positive",
+        "predicted": "needs_review",
+        "severity": null,
+        "confidence": 0.6,
+        "reasoning": "O arquivo metrics.d5d5.js referencia /actuator/env e outros endpoints do Spring Boot Actuator, possivelmente heapdump/threaddump e health. Se estiverem expostos, podem vazar segredos ou memória. A evidência, porém, mostra apenas referências no JavaScript, sem resposta HTTP que confirme exposição pública. É necessário validar se os endpoints respondem sem autenticação; /health sozinho costuma ser benigno.",
+        "api_failure": false
+      },
+      {
+        "id": "E-R04",
+        "category": "exposed_endpoint",
+        "expected": "true_positive",
+        "predicted": "needs_review",
+        "severity": null,
+        "confidence": 0.6,
+        "reasoning": "O arquivo backup.e6e6.js referencia /api/backup/download?file=db.sql e uma rota /gra... (possivelmente GraphQL playground). A referência sugere uma funcionalidade de download de backup de banco, com parâmetro de arquivo controlável. Ainda assim, não há evidência de resposta do servidor, de acesso sem autenticação ou de conteúdo retornado. O achado deve ser validado com prioridade, sem tratar a simples menção como exposição confirmada.",
+        "api_failure": false
+      },
+      {
+        "id": "E-F01",
+        "category": "exposed_endpoint",
+        "expected": "false_positive",
+        "predicted": "false_positive",
+        "severity": null,
+        "confidence": 0.9,
+        "reasoning": "As referências apontam para recursos estáticos (.png, .css e /favicon.ico), que são públicos por natureza e não representam risco.",
+        "api_failure": false
+      },
+      {
+        "id": "E-F02",
+        "category": "exposed_endpoint",
+        "expected": "false_positive",
+        "predicted": "false_positive",
+        "severity": null,
+        "confidence": 0.8,
+        "reasoning": "As rotas de catálogo (/api.../produtos, /api.../categorias e /api/v1/busca) correspondem à funcionalidade pública esperada de uma loja. Não há evidência de dados sensíveis ou de falha de controle de acesso.",
+        "api_failure": false
+      },
+      {
+        "id": "E-F03",
+        "category": "exposed_endpoint",
+        "expected": "false_positive",
+        "predicted": "false_positive",
+        "severity": null,
+        "confidence": 0.95,
+        "reasoning": "As URLs são serviços públicos de terceiros (Google Tag Manager e Google Fonts), comuns em sites e sem risco intrínseco.",
+        "api_failure": false
+      },
+      {
+        "id": "E-F04",
+        "category": "exposed_endpoint",
+        "expected": "false_positive",
+        "predicted": "false_positive",
+        "severity": null,
+        "confidence": 0.95,
+        "reasoning": "As rotas /sobre, /contato e a página de política (/pol...dade) são páginas institucionais públicas e benignas.",
+        "api_failure": false
+      }
+    ],
+    [
+      {
+        "id": "S-R01",
+        "category": "exposed_secret",
+        "expected": "true_positive",
+        "predicted": "true_positive",
+        "severity": "high",
+        "confidence": 0.85,
+        "reasoning": "O bundle JS publico contem um accessKeyId com prefixo AKIA e um secretAccessKey, ambos usados diretamente em new AWS.S3 na regiao sa-east-1. O sufixo mascarado nao corresponde as chaves de exemplo da documentacao AWS (AKIAIOSFODNN7EXAMPLE). Credenciais IAM de longa duracao entregues ao navegador ficam acessiveis a qualquer visitante. A validade e as permissoes da chave nao foram verificadas no payload. Se forem validas, o impacto pode chegar a leitura, escrita ou remocao de objetos S3 ou de outros recursos permitidos pela politica IAM.",
+        "api_failure": false
+      },
+      {
+        "id": "S-R02",
+        "category": "exposed_secret",
+        "expected": "true_positive",
+        "predicted": "true_positive",
+        "severity": "high",
+        "confidence": 0.85,
+        "reasoning": "Um token com formato de GitHub PAT classico (ghp_) e usado em um header Authorization dentro de JS publico. A chamada faz POST para o endpoint dispatches do repositorio loja/infra. Um token com permissao para disparar eventos nesse repositorio pode acionar workflows de infraestrutura e, dependendo do escopo, permitir acesso a outros repositorios da organizacao. A validade e o escopo nao foram confirmados.",
+        "api_failure": false
+      },
+      {
+        "id": "S-R03",
+        "category": "exposed_secret",
+        "expected": "true_positive",
+        "predicted": "true_positive",
+        "severity": "critical",
+        "confidence": 0.85,
+        "reasoning": "Uma chave com prefixo sk_l, compativel com uma chave secreta live do Stripe, esta embutida no JS de checkout servido publicamente, com o comentario 'cobranca direta'. Chaves secretas do Stripe dao acesso amplo a API da conta: cobrancas, reembolsos, dados de clientes e pagamentos. A validade nao foi verificada, mas a exposicao de uma chave secreta live no cliente configura risco critico.",
+        "api_failure": false
+      },
+      {
+        "id": "S-R04",
+        "category": "exposed_secret",
+        "expected": "true_positive",
+        "predicted": "true_positive",
+        "severity": "medium",
+        "confidence": 0.8,
+        "reasoning": "Uma URL de incoming webhook do Slack esta exposta em JS publico e envia alertas de pedidos ao canal #ops. Qualquer pessoa com a URL pode publicar mensagens arbitrarias nesse canal interno, o que abre espaco para spam, alertas falsos e phishing direcionado a equipe de operacoes. O webhook nao concede leitura do workspace, por isso o impacto e moderado. A validade nao foi verificada.",
+        "api_failure": false
+      },
+      {
+        "id": "S-R05",
+        "category": "exposed_secret",
+        "expected": "true_positive",
+        "predicted": "needs_review",
+        "severity": null,
+        "confidence": 0.55,
+        "reasoning": "O contexto mostra um cabecalho de chave privada (31 caracteres, compativel com BEGIN RSA PRIVATE KEY) e o inicio tipico MIIEpAIBAAKCAQEA, usado como SIGNING_KEY para assinar tokens de sessao. Se for real, o impacto e critico, porque permite forjar sessoes. Porem, a entropia e baixa (3.2) e o conteudo aparece seguido de '...' literal no contexto. Isso pode indicar placeholder ou truncamento do proprio detector. Nao e possivel confirmar se o arquivo contem uma chave completa sem inspecao manual.",
+        "api_failure": false
+      },
+      {
+        "id": "S-R06",
+        "category": "exposed_secret",
+        "expected": "true_positive",
+        "predicted": "true_positive",
+        "severity": "high",
+        "confidence": 0.75,
+        "reasoning": "Um JWT nomeado SERVICE_TOKEN esta embutido em JS publico e e enviado como Bearer para /api/internal/sync. O nome e o endpoint indicam uma credencial de servico para uma API interna, acessivel a qualquer visitante. A expiracao, os claims e a validade do token nao constam no payload. Se nao expirar ou tiver vida longa, permite acesso nao autorizado a funcoes internas de sincronizacao.",
+        "api_failure": false
+      },
+      {
+        "id": "S-R07",
+        "category": "exposed_secret",
+        "expected": "true_positive",
+        "predicted": "true_positive",
+        "severity": "high",
+        "confidence": 0.85,
+        "reasoning": "Uma API key do SendGrid (prefixo SG.) esta exposta em JS publico e e usada diretamente em sgMail.setApiKey. Se valida e com permissao de envio, permite mandar e-mails em nome do dominio da loja, abrindo espaco para phishing com remetente legitimo e dano a reputacao. Dependendo do escopo, tambem pode dar acesso a contatos e configuracoes da conta. A validade nao foi verificada.",
+        "api_failure": false
+      },
+      {
+        "id": "S-R08",
+        "category": "exposed_secret",
+        "expected": "true_positive",
+        "predicted": "true_positive",
+        "severity": "high",
+        "confidence": 0.7,
+        "reasoning": "O JS publico monta uma connection string MongoDB com o usuario loja_admin e a senha em texto claro. A exposicao de credenciais administrativas de banco no cliente e um risco serio. Ressalva: o host cluster0.mongodb.net nao segue o formato usual do Atlas (cluster0.<id>.mongodb.net), o que pode indicar trecho truncado ou ambiente nao real. A validade da senha e a acessibilidade de rede do cluster nao foram verificadas.",
+        "api_failure": false
+      },
+      {
+        "id": "S-R09",
+        "category": "exposed_secret",
+        "expected": "true_positive",
+        "predicted": "true_positive",
+        "severity": "high",
+        "confidence": 0.8,
+        "reasoning": "Um Twilio Auth Token (32 caracteres hex) esta embutido em JS publico e e usado para instanciar o cliente twilio com accountSid. O Auth Token da acesso amplo a conta: envio de SMS e chamadas com custo para a loja, leitura de logs de mensagens e alteracao de configuracoes. A validade nao foi verificada.",
+        "api_failure": false
+      },
+      {
+        "id": "S-R10",
+        "category": "exposed_secret",
+        "expected": "true_positive",
+        "predicted": "true_positive",
+        "severity": "high",
+        "confidence": 0.8,
+        "reasoning": "Uma chave com prefixo sk-p, compativel com uma project key da OpenAI, e enviada pelo frontend direto para api.openai.com em JS publico. Qualquer visitante pode extrai-la e consumir a API com custo para a loja, alem de potencialmente acessar recursos do projeto, como arquivos e assistants. A validade nao foi verificada.",
+        "api_failure": false
+      },
+      {
+        "id": "S-R11",
+        "category": "exposed_secret",
+        "expected": "true_positive",
+        "predicted": "true_positive",
+        "severity": "high",
+        "confidence": 0.8,
+        "reasoning": "O valor esta atribuido a AWS_SECRET_ACCESS_KEY dentro de window.__ENV__, em um bundle JS publico servido pelo dominio de producao. Ao lado aparece o bucket 'loja-uploads-prod'. A entropia e alta (4.8) e nao ha indicio de placeholder ou de exemplo. Uma secret key da AWS nunca deveria chegar ao cliente. A validade da chave e o escopo das permissoes IAM nao foram verificados, por isso a severidade e alta e nao critica.",
+        "api_failure": false
+      },
+      {
+        "id": "S-R12",
+        "category": "exposed_secret",
+        "expected": "true_positive",
+        "predicted": "true_positive",
+        "severity": "medium",
+        "confidence": 0.75,
+        "reasoning": "Um client_secret OAuth do Google (prefixo GOCS...) aparece junto de um client_id em um bundle JS publico da tela de login. O client_secret de aplicacoes web deve ficar no servidor. A exposicao permite que terceiros se passem pela aplicacao na troca de codigos por tokens. O impacto depende da configuracao do client (redirect URIs e escopos), que nao foi verificada.",
+        "api_failure": false
+      },
+      {
+        "id": "S-R13",
+        "category": "exposed_secret",
+        "expected": "true_positive",
+        "predicted": "true_positive",
+        "severity": "high",
+        "confidence": 0.65,
+        "reasoning": "O codigo de producao chama /api/relatorios/financeiro com Basic Auth, usuario 'admin' e senha hardcoded no bundle publico. Nao ha comentario indicando exemplo ou placeholder, e o uso e real na chamada axios. O valor esta totalmente mascarado e nao foi validado. Ainda assim, uma credencial administrativa embutida em JS publico para um endpoint financeiro representa risco relevante.",
+        "api_failure": false
+      },
+      {
+        "id": "S-R14",
+        "category": "exposed_secret",
+        "expected": "true_positive",
+        "predicted": "true_positive",
+        "severity": "high",
+        "confidence": 0.8,
+        "reasoning": "Uma chave privada da API Mailgun (formato key-...) esta atribuida a MAILGUN_KEY e e usada diretamente em mailgun.client no bundle publico. Isso permitiria enviar e-mails em nome do dominio da loja (phishing) e possivelmente consultar logs e dados de destinatarios. A validade da chave nao foi verificada.",
+        "api_failure": false
+      },
+      {
+        "id": "S-R15",
+        "category": "exposed_secret",
+        "expected": "true_positive",
+        "predicted": "true_positive",
+        "severity": "high",
+        "confidence": 0.75,
+        "reasoning": "Um token npm (prefixo npm_, entropia 5.0) esta exposto em bundle publico. O comentario indica que ele publica pacotes privados da loja. Se o token tiver permissao de escrita, ha risco de comprometimento da cadeia de suprimentos e de vazamento de codigo privado. O escopo real do token nao foi verificado.",
+        "api_failure": false
+      },
+      {
+        "id": "S-R16",
+        "category": "exposed_secret",
+        "expected": "true_positive",
+        "predicted": "true_positive",
+        "severity": "critical",
+        "confidence": 0.8,
+        "reasoning": "Uma API key do Heroku e usada como Bearer em uma chamada a api.heroku.com/apps/loja-prod/config-vars, a partir de um JS publico. Chaves de API do Heroku costumam ter escopo de conta. O endpoint referenciado expoe as config vars de producao, que normalmente contem outros segredos (banco, terceiros). A validade da chave nao foi verificada.",
+        "api_failure": false
+      },
+      {
+        "id": "S-F01",
+        "category": "exposed_secret",
+        "expected": "false_positive",
+        "predicted": "false_positive",
+        "severity": null,
+        "confidence": 0.95,
+        "reasoning": "O valor segue o padrao AKIA...MPLE, compativel com a chave de exemplo publica da documentacao da AWS (sufixo EXAMPLE). Ele aparece em um comentario que o identifica explicitamente como exemplo da documentacao, sem uso em codigo.",
+        "api_failure": false
+      },
+      {
+        "id": "S-F02",
+        "category": "exposed_secret",
+        "expected": "false_positive",
+        "predicted": "false_positive",
+        "severity": null,
+        "confidence": 0.7,
+        "reasoning": "O contexto traz o comentario 'substitua pela sua chave antes de usar', o que indica um placeholder de exemplo. A entropia e baixa (3.5). O valor esta totalmente mascarado, entao resta uma pequena chance de que uma chave real tenha sido inserida mantendo o comentario.",
+        "api_failure": false
+      },
+      {
+        "id": "S-F03",
+        "category": "exposed_secret",
+        "expected": "false_positive",
+        "predicted": "needs_review",
+        "severity": null,
+        "confidence": 0.5,
+        "reasoning": "O comentario 'definido no deploy' sugere que o valor e injetado no build. Assim, o bundle publicado contem o valor real, nao um placeholder. Porem nao ha contexto sobre qual servico a API_KEY atende, nem se e uma chave publica por design (ex.: chave de frontend restrita por dominio) ou um segredo. Nao e possivel decidir sem verificar.",
+        "api_failure": false
+      },
+      {
+        "id": "S-F04",
+        "category": "exposed_secret",
+        "expected": "false_positive",
+        "predicted": "false_positive",
+        "severity": null,
+        "confidence": 0.85,
+        "reasoning": "O comentario indica que o JWT e o token de exemplo do jwt.io usado em testes. O arquivo e um spec (auth.spec). Tokens de exemplo do jwt.io sao publicos e nao concedem acesso. A publicacao de arquivos de teste em producao e apenas uma questao de higiene de build.",
+        "api_failure": false
+      },
+      {
+        "id": "S-F05",
+        "category": "exposed_secret",
+        "expected": "false_positive",
+        "predicted": "false_positive",
+        "severity": null,
+        "confidence": 0.9,
+        "reasoning": "O valor tem o prefixo pk_l, de uma chave publicavel (publishable key) do Stripe. Ele e passado a Stripe() no frontend, que e o uso previsto. Chaves publicaveis sao feitas para ficar expostas no cliente e nao permitem operacoes privilegiadas. Nao ha indicio de chave secreta (sk_) ou restrita (rk_).",
+        "api_failure": false
+      },
+      {
+        "id": "S-F06",
+        "category": "exposed_secret",
+        "expected": "false_positive",
+        "predicted": "false_positive",
+        "severity": null,
+        "confidence": 0.95,
+        "reasoning": "O valor e um hash de Subresource Integrity (atributo integrity com prefixo sha3..., tipico de sha384) em uma tag script. Hashes SRI sao publicos por definicao e servem para verificar a integridade do recurso. Nao e uma credencial.",
+        "api_failure": false
+      },
+      {
+        "id": "S-F07",
+        "category": "exposed_secret",
+        "expected": "false_positive",
+        "predicted": "false_positive",
+        "severity": null,
+        "confidence": 0.9,
+        "reasoning": "O valor e retornado por __webpack_require__.h, funcao do runtime do webpack que expoe o hash de compilacao (build hash). E um identificador publico de build, nao uma credencial. A entropia baixa (3.8) tambem e compativel com isso.",
+        "api_failure": false
+      },
+      {
+        "id": "S-F08",
+        "category": "exposed_secret",
+        "expected": "false_positive",
+        "predicted": "false_positive",
+        "severity": null,
+        "confidence": 0.85,
+        "reasoning": "O valor e um DSN do Sentry usado em Sentry.init no frontend. O DSN de cliente e projetado para ser publico, porque so permite enviar eventos ao projeto, sem dar acesso de leitura aos dados. O risco residual e abuso por envio de eventos falsos, o que e mitigavel com filtros de origem e rate limit. Isso nao caracteriza vazamento de segredo.",
+        "api_failure": false
+      },
+      {
+        "id": "S-F09",
+        "category": "exposed_secret",
+        "expected": "false_positive",
+        "predicted": "false_positive",
+        "severity": null,
+        "confidence": 0.8,
+        "reasoning": "O contexto e um objeto de rotulos de internacionalizacao (labels) com a chave password ao lado de email: \"E-mail\". Isso indica um texto de interface para o campo de senha, e nao uma senha real. A deteccao provavelmente foi disparada pela palavra password.",
+        "api_failure": false
+      },
+      {
+        "id": "S-F10",
+        "category": "exposed_secret",
+        "expected": "false_positive",
+        "predicted": "false_positive",
+        "severity": null,
+        "confidence": 0.85,
+        "reasoning": "O valor detectado e um placeholder de template ({{AU...EN}}), cujo formato e compativel com {{AUTH_TOKEN}}, ainda nao substituido. No arquivo estatico servido existe apenas o marcador, nao um token real. A entropia baixa (3.4) e compativel com isso.",
+        "api_failure": false
+      },
+      {
+        "id": "S-F11",
+        "category": "exposed_secret",
+        "expected": "false_positive",
+        "predicted": "needs_review",
+        "severity": null,
+        "confidence": 0.6,
+        "reasoning": "A chave Algolia e usada com algoliasearch no frontend, o que costuma corresponder a uma search-only API key, que e publica por design. Porem, a afirmacao 'search-only' vem de um comentario no proprio codigo, que e conteudo nao confiavel. Pelo formato nao da para distinguir uma chave de busca de uma Admin API key ou de uma chave com ACLs de escrita, e essa segunda hipotese seria grave. Para decidir, e preciso confirmar as ACLs da chave no painel da Algolia.",
+        "api_failure": false
+      },
+      {
+        "id": "S-F12",
+        "category": "exposed_secret",
+        "expected": "false_positive",
+        "predicted": "false_positive",
+        "severity": null,
+        "confidence": 0.95,
+        "reasoning": "O valor e o sitekey do Google reCAPTCHA (prefixo 6L), passado a grecaptcha.render. O sitekey e publico por design e deve estar no frontend. A secret key do reCAPTCHA, que fica no servidor, nao aparece na evidencia.",
+        "api_failure": false
+      },
+      {
+        "id": "S-F13",
+        "category": "exposed_secret",
+        "expected": "false_positive",
+        "predicted": "false_positive",
+        "severity": null,
+        "confidence": 0.8,
+        "reasoning": "O valor esta em um comentario que descreve um exemplo de payload de login, com o usuario 'demo'. A entropia e muito baixa (2.8), compativel com uma senha de exemplo ou documentacao. Nada na evidencia indica uma credencial real em uso.",
+        "api_failure": false
+      },
+      {
+        "id": "S-F14",
+        "category": "exposed_secret",
+        "expected": "false_positive",
+        "predicted": "false_positive",
+        "severity": null,
+        "confidence": 0.9,
+        "reasoning": "O valor AKIA...XXXX aparece em um comentario instrutivo ('preencha com a sua chave'). Ele termina em XXXX e tem entropia muito baixa (1.9), caracteristicas tipicas de um placeholder. Isso indica uma chave de exemplo, e nao uma AWS Access Key ID real. Tambem nao ha secret access key associada na evidencia.",
+        "api_failure": false
+      },
+      {
+        "id": "S-F15",
+        "category": "exposed_secret",
+        "expected": "false_positive",
+        "predicted": "false_positive",
+        "severity": null,
+        "confidence": 0.93,
+        "reasoning": "O valor esta atribuido a PUBLIC_VAPID_KEY e e usado como applicationServerKey em registration.pushManager.subscribe, que e o uso padrao de uma chave publica VAPID (Web Push). Essa chave foi projetada para ser exposta no cliente. O prefixo 'B' e o tamanho (~87 caracteres em base64url) sao compativeis com uma chave publica P-256 nao comprimida. O risco existiria apenas se a chave privada VAPID estivesse exposta, e isso nao aparece na evidencia.",
+        "api_failure": false
+      },
+      {
+        "id": "S-F16",
+        "category": "exposed_secret",
+        "expected": "false_positive",
+        "predicted": "false_positive",
+        "severity": null,
+        "confidence": 0.95,
+        "reasoning": "O valor e um Measurement ID do Google Analytics 4 (prefixo 'G-'), usado em gtag(\"config\", ...). Esse identificador e publico por design e aparece em qualquer site que usa GA4. Ele nao e uma credencial e nao concede acesso a dados. A baixa entropia (3.3) e o comentario no codigo confirmam o contexto benigno.",
+        "api_failure": false
+      },
+      {
+        "id": "E-R01",
+        "category": "exposed_endpoint",
+        "expected": "true_positive",
+        "predicted": "needs_review",
+        "severity": null,
+        "confidence": 0.6,
+        "reasoning": "O chunk admin.chunk.81f0.js referencia 3 endpoints sob /api, e os nomes estao parcialmente mascarados. Um bundle administrativo servido publicamente revela a superficie de ataque. Porem, a evidencia contem apenas strings extraidas por regex. Nao ha resposta HTTP que mostre ausencia de autenticacao ou de autorizacao. A existencia da rota no JS nao prova falha. E preciso verificar se os endpoints exigem autenticacao e perfil administrativo no servidor.",
+        "api_failure": false
+      },
+      {
+        "id": "E-R02",
+        "category": "exposed_endpoint",
+        "expected": "true_positive",
+        "predicted": "needs_review",
+        "severity": null,
+        "confidence": 0.6,
+        "reasoning": "O arquivo debug.c4c4.js, servido em producao, referencia rotas internas com nomes sugestivos, como /int.../env e /int...dump, que podem expor variaveis de ambiente ou dumps. Isso indica um possivel artefato de depuracao publicado indevidamente. Porem, nao ha evidencia de que as rotas estejam acessiveis externamente nem de que retornem dados sensiveis. Revisao manual necessaria, com prioridade alta pelo potencial impacto.",
+        "api_failure": false
+      },
+      {
+        "id": "E-R03",
+        "category": "exposed_endpoint",
+        "expected": "true_positive",
+        "predicted": "needs_review",
+        "severity": null,
+        "confidence": 0.6,
+        "reasoning": "O arquivo metrics.d5d5.js referencia /actuator/env e outros endpoints do Spring Boot Actuator, aparentemente um dump e health. Se estiverem expostos sem autenticacao, /actuator/env e heapdump/threaddump podem vazar segredos e configuracao. Ja /actuator/health costuma ser benigno. A evidencia mostra apenas a referencia no JS, sem resposta do servidor que confirme a exposicao. Requer verificacao manual autorizada.",
+        "api_failure": false
+      },
+      {
+        "id": "E-R04",
+        "category": "exposed_endpoint",
+        "expected": "true_positive",
+        "predicted": "needs_review",
+        "severity": null,
+        "confidence": 0.55,
+        "reasoning": "O arquivo backup.e6e6.js contem a rota /api/backup/download?file=db.sql. Ela sugere download de backup de banco de dados e um parametro de arquivo potencialmente manipulavel, com risco de path traversal ou IDOR. E uma referencia muito sensivel. Contudo, a evidencia nao inclui resposta HTTP que comprove acesso sem autenticacao ou a existencia do arquivo. Prioridade alta para revisao manual.",
+        "api_failure": false
+      },
+      {
+        "id": "E-F01",
+        "category": "exposed_endpoint",
+        "expected": "false_positive",
+        "predicted": "false_positive",
+        "severity": null,
+        "confidence": 0.9,
+        "reasoning": "Os endpoints extraidos sao recursos estaticos publicos: imagens .png, folhas .css e /favicon.ico. Nao representam risco de seguranca.",
+        "api_failure": false
+      },
+      {
+        "id": "E-F02",
+        "category": "exposed_endpoint",
+        "expected": "false_positive",
+        "predicted": "false_positive",
+        "severity": null,
+        "confidence": 0.75,
+        "reasoning": "As rotas de catalogo (produtos, categorias e /api/v1/busca) sao funcionalidades publicas esperadas de uma loja virtual e sao consumidas pelo frontend. A mera referencia no JS nao indica exposicao indevida, e nada na evidencia sugere dados sensiveis.",
+        "api_failure": false
+      },
+      {
+        "id": "E-F03",
+        "category": "exposed_endpoint",
+        "expected": "false_positive",
+        "predicted": "false_positive",
+        "severity": null,
+        "confidence": 0.95,
+        "reasoning": "As URLs sao servicos publicos de terceiros de uso comum: Google Tag Manager (gtag/js) e Google Fonts. Nao ha risco associado a sua referencia no JS.",
+        "api_failure": false
+      },
+      {
+        "id": "E-F04",
+        "category": "exposed_endpoint",
+        "expected": "false_positive",
+        "predicted": "false_positive",
+        "severity": null,
+        "confidence": 0.95,
+        "reasoning": "As rotas sao paginas institucionais publicas: /sobre, /contato e uma pagina de politica, provavelmente de privacidade. Sao conteudo benigno e intencionalmente publico.",
+        "api_failure": false
+      }
+    ],
+    [
+      {
+        "id": "S-R01",
+        "category": "exposed_secret",
+        "expected": "true_positive",
+        "predicted": "true_positive",
+        "severity": "high",
+        "confidence": 0.7,
+        "reasoning": "O bundle público upload.4f2a.js (linha 112) instancia AWS.S3 com accessKeyId (prefixo AKIA, de chave de longa duração) e secretAccessKey hardcoded. Qualquer visitante recebe esse par de credenciais. Não há como confirmar validade nem permissões. Ressalva: o prefixo mascarado da secret ('wJal') coincide com o exemplo da documentação AWS, mas o sufixo da access key ('Q7XZ') não corresponde ao exemplo, então não há prova de que seja placeholder.",
+        "api_failure": false
+      },
+      {
+        "id": "S-R02",
+        "category": "exposed_secret",
+        "expected": "true_positive",
+        "predicted": "true_positive",
+        "severity": "high",
+        "confidence": 0.85,
+        "reasoning": "Um GitHub PAT (ghp_) está hardcoded em JS público e é usado para POST em /repos/loja/infra/dispatches. Isso indica permissão para disparar workflows em um repositório de infraestrutura. A exposição a qualquer visitante pode permitir acionar pipelines e, conforme o escopo do token, acessar outros repositórios. A validade e o escopo não foram verificados.",
+        "api_failure": false
+      },
+      {
+        "id": "S-R03",
+        "category": "exposed_secret",
+        "expected": "true_positive",
+        "predicted": "true_positive",
+        "severity": "critical",
+        "confidence": 0.85,
+        "reasoning": "Uma chave secreta Stripe (prefixo sk_l, compatível com sk_live) está embutida em checkout.71bd.js, servido publicamente. O comentário 'cobranca direta' indica uso em produção. Uma chave secreta Stripe permite criar cobranças, reembolsos e ler dados de clientes. A validade não foi confirmada.",
+        "api_failure": false
+      },
+      {
+        "id": "S-R04",
+        "category": "exposed_secret",
+        "expected": "true_positive",
+        "predicted": "true_positive",
+        "severity": "medium",
+        "confidence": 0.8,
+        "reasoning": "Uma URL de Incoming Webhook do Slack está hardcoded em JS público para alertas do canal #ops. Quem tiver a URL pode postar mensagens arbitrárias no canal, abrindo espaço para spam, phishing interno ou alertas falsos. Não dá leitura do workspace.",
+        "api_failure": false
+      },
+      {
+        "id": "S-R05",
+        "category": "exposed_secret",
+        "expected": "true_positive",
+        "predicted": "true_positive",
+        "severity": "critical",
+        "confidence": 0.6,
+        "reasoning": "Um cabeçalho de chave privada (31 caracteres, compatível com BEGIN RSA PRIVATE KEY) e o início típico de corpo RSA (MIIEpAIBAAKCAQEA) aparecem em JS público, com o comentário de que a chave assina tokens de sessão. Se for a chave real, permite forjar sessões de qualquer usuário. A confiança é reduzida porque a evidência mostra o corpo truncado com '...' e a entropia é baixa. É preciso confirmar se o arquivo contém a chave completa ou apenas um placeholder.",
+        "api_failure": false
+      },
+      {
+        "id": "S-R06",
+        "category": "exposed_secret",
+        "expected": "true_positive",
+        "predicted": "true_positive",
+        "severity": "high",
+        "confidence": 0.7,
+        "reasoning": "Um JWT nomeado SERVICE_TOKEN está hardcoded em JS público e é enviado como Bearer para /api/internal/sync, um endpoint interno. Trata-se de credencial de serviço estática exposta a todos os visitantes, não de um token de sessão do usuário. Expiração, escopo e validade não foram verificados.",
+        "api_failure": false
+      },
+      {
+        "id": "S-R07",
+        "category": "exposed_secret",
+        "expected": "true_positive",
+        "predicted": "true_positive",
+        "severity": "high",
+        "confidence": 0.85,
+        "reasoning": "Uma API key do SendGrid (prefixo SG.) está hardcoded em JS público e é passada a sgMail.setApiKey. Isso pode permitir envio de e-mails em nome do domínio (phishing, dano à reputação) e, conforme as permissões, acesso a contatos. A validade não foi verificada.",
+        "api_failure": false
+      },
+      {
+        "id": "S-R08",
+        "category": "exposed_secret",
+        "expected": "true_positive",
+        "predicted": "true_positive",
+        "severity": "high",
+        "confidence": 0.65,
+        "reasoning": "Uma string de conexão MongoDB com usuário loja_admin e senha concatenada aparece em JS público. Credenciais administrativas de banco expostas podem levar a leitura e alteração de todos os dados da loja. Ressalvas: o host 'cluster0.mongodb.net' não tem o identificador único típico de clusters Atlas e o uso de mongoose no browser é atípico. Pode ser código de servidor empacotado por engano, ou o host pode ter sido alterado. A validade não foi verificada.",
+        "api_failure": false
+      },
+      {
+        "id": "S-R09",
+        "category": "exposed_secret",
+        "expected": "true_positive",
+        "predicted": "true_positive",
+        "severity": "high",
+        "confidence": 0.8,
+        "reasoning": "Um Twilio Auth Token (32 caracteres hexadecimais) está hardcoded em JS público e é usado para instanciar o cliente twilio junto ao accountSid. Isso pode permitir envio de SMS ou ligações às custas da conta (fraude e custo) e acesso a logs de mensagens. A validade não foi verificada.",
+        "api_failure": false
+      },
+      {
+        "id": "S-R10",
+        "category": "exposed_secret",
+        "expected": "true_positive",
+        "predicted": "true_positive",
+        "severity": "high",
+        "confidence": 0.85,
+        "reasoning": "Uma chave OpenAI (prefixo sk-p, compatível com chave de projeto) está hardcoded em JS público e é usada como Bearer em chamadas a api.openai.com. Qualquer visitante pode extraí-la e consumir a cota (custo financeiro) ou acessar recursos do projeto. A validade não foi verificada.",
+        "api_failure": false
+      },
+      {
+        "id": "S-R11",
+        "category": "exposed_secret",
+        "expected": "true_positive",
+        "predicted": "true_positive",
+        "severity": "high",
+        "confidence": 0.85,
+        "reasoning": "Um valor atribuido a AWS_SECRET_ACCESS_KEY, com alta entropia (4.8), esta em um bundle JavaScript publico, exposto via window.__ENV__, junto do bucket 'loja-uploads-prod'. Uma secret access key da AWS nunca deve estar no cliente. A validade da chave e as permissoes associadas nao foram verificadas, mas o contexto de producao sustenta risco alto de acesso nao autorizado ao bucket ou a outros recursos AWS.",
+        "api_failure": false
+      },
+      {
+        "id": "S-R12",
+        "category": "exposed_secret",
+        "expected": "true_positive",
+        "predicted": "true_positive",
+        "severity": "medium",
+        "confidence": 0.8,
+        "reasoning": "Um client_secret OAuth do Google, com prefixo compativel com GOCSPX, esta embutido em um bundle de login publico, junto do client_id. O client_secret de aplicacoes web e confidencial. Exposto, ele permite que terceiros se passem pelo cliente OAuth em fluxos de troca de codigo, o que facilita phishing e abuso do app. O impacto direto depende da configuracao do cliente, que nao foi verificada.",
+        "api_failure": false
+      },
+      {
+        "id": "S-R13",
+        "category": "exposed_secret",
+        "expected": "true_positive",
+        "predicted": "true_positive",
+        "severity": "high",
+        "confidence": 0.7,
+        "reasoning": "O bundle publico contem credenciais de Basic Auth do usuario 'admin', usadas para acessar '/api/relatorios/financeiro'. O valor da senha esta totalmente mascarado e nao foi validado. Mesmo assim, o contexto indica uma credencial administrativa real, fixa no codigo cliente e usada contra um endpoint financeiro, o que permitiria a qualquer visitante obter acesso privilegiado a relatorios.",
+        "api_failure": false
+      },
+      {
+        "id": "S-R14",
+        "category": "exposed_secret",
+        "expected": "true_positive",
+        "predicted": "true_positive",
+        "severity": "high",
+        "confidence": 0.85,
+        "reasoning": "Uma chave privada do Mailgun (prefixo 'key-') esta em um bundle JavaScript publico e e usada diretamente com mailgun.client. A chave de API privada do Mailgun permite enviar e-mails pelo dominio da loja e acessar logs e listas, o que abre espaco para phishing com remetente legitimo e vazamento de dados de destinatarios. A validade da chave nao foi verificada.",
+        "api_failure": false
+      },
+      {
+        "id": "S-R15",
+        "category": "exposed_secret",
+        "expected": "true_positive",
+        "predicted": "true_positive",
+        "severity": "high",
+        "confidence": 0.85,
+        "reasoning": "Um token npm (prefixo 'npm_', alta entropia) esta em um bundle publico, e o comentario indica que ele publica pacotes privados da loja. Se valido, permite vazar codigo privado e publicar versoes maliciosas, com risco de comprometimento da cadeia de suprimentos. A validade e o escopo do token nao foram verificados.",
+        "api_failure": false
+      },
+      {
+        "id": "S-R16",
+        "category": "exposed_secret",
+        "expected": "true_positive",
+        "predicted": "true_positive",
+        "severity": "high",
+        "confidence": 0.85,
+        "reasoning": "Uma chave de API da Heroku esta em um bundle publico, usada como Bearer em uma chamada a api.heroku.com/apps/loja-prod/config-vars. Esse endpoint expoe as variaveis de configuracao do app de producao, que costumam conter outros segredos, e a chave da Heroku pode dar controle da conta ou do app. A validade nao foi verificada, mas o contexto sustenta impacto alto, potencialmente critico.",
+        "api_failure": false
+      },
+      {
+        "id": "S-F01",
+        "category": "exposed_secret",
+        "expected": "false_positive",
+        "predicted": "false_positive",
+        "severity": null,
+        "confidence": 0.95,
+        "reasoning": "O valor mascarado comeca com 'AKIA' e termina com 'MPLE', padrao da chave de exemplo da documentacao da AWS (AKIAIOSFODNN7EXAMPLE). O proprio contexto e um comentario que indica 'Exemplo da documentacao da AWS'. E ruido comum.",
+        "api_failure": false
+      },
+      {
+        "id": "S-F02",
+        "category": "exposed_secret",
+        "expected": "false_positive",
+        "predicted": "false_positive",
+        "severity": null,
+        "confidence": 0.75,
+        "reasoning": "O contexto traz o comentario 'substitua pela sua chave antes de usar', tipico de placeholder de exemplo. O valor esta totalmente mascarado e tem entropia baixa (3.5), consistente com um texto de placeholder. Ainda assim, vale conferir rapidamente se o valor nao foi substituido por uma chave real.",
+        "api_failure": false
+      },
+      {
+        "id": "S-F03",
+        "category": "exposed_secret",
+        "expected": "false_positive",
+        "predicted": "needs_review",
+        "severity": null,
+        "confidence": 0.5,
+        "reasoning": "A constante API_KEY tem valor literal mascarado e o comentario 'definido no deploy', o que sugere injecao de uma chave real em tempo de build. Nao ha como saber a qual servico a chave pertence nem se ela e publica por design (ex.: chave de cliente restrita) ou sensivel. E preciso identificar o uso da chave no codigo para decidir.",
+        "api_failure": false
+      },
+      {
+        "id": "S-F04",
+        "category": "exposed_secret",
+        "expected": "false_positive",
+        "predicted": "false_positive",
+        "severity": null,
+        "confidence": 0.85,
+        "reasoning": "O comentario identifica o JWT como token de exemplo do jwt.io usado em testes, e o arquivo e um spec (auth.spec). Tokens de exemplo do jwt.io sao publicos e nao concedem acesso. A publicacao de arquivos de teste em producao e apenas uma questao menor de higiene.",
+        "api_failure": false
+      },
+      {
+        "id": "S-F05",
+        "category": "exposed_secret",
+        "expected": "false_positive",
+        "predicted": "false_positive",
+        "severity": null,
+        "confidence": 0.9,
+        "reasoning": "O contexto mostra uma chave inicializada via Stripe(\"pk_l...\") no front-end. Chaves com prefixo pk_ sao publishable keys do Stripe. Elas sao projetadas para uso publico no navegador e nao permitem operacoes privilegiadas. Nao ha indicio de secret key (sk_) ou restricted key (rk_) exposta.",
+        "api_failure": false
+      },
+      {
+        "id": "S-F06",
+        "category": "exposed_secret",
+        "expected": "false_positive",
+        "predicted": "false_positive",
+        "severity": null,
+        "confidence": 0.95,
+        "reasoning": "O valor detectado e o atributo integrity de uma tag script, ou seja, um hash de Subresource Integrity (prefixo sha3xx). Esse hash e publico por natureza e serve para validar a integridade do recurso. A alta entropia vem do digest em base64, nao de uma credencial.",
+        "api_failure": false
+      },
+      {
+        "id": "S-F07",
+        "category": "exposed_secret",
+        "expected": "false_positive",
+        "predicted": "false_positive",
+        "severity": null,
+        "confidence": 0.9,
+        "reasoning": "O valor e retornado por __webpack_require__.h, funcao do runtime do webpack que expoe o hash de compilacao do build. Trata-se de um identificador de build sem funcao de autenticacao. A entropia baixa (3.8) tambem e consistente com um hash hexadecimal.",
+        "api_failure": false
+      },
+      {
+        "id": "S-F08",
+        "category": "exposed_secret",
+        "expected": "false_positive",
+        "predicted": "false_positive",
+        "severity": null,
+        "confidence": 0.8,
+        "reasoning": "O valor e o DSN passado a Sentry.init no front-end. DSNs client-side do Sentry sao publicos por design: permitem apenas enviar eventos e nao dao acesso de leitura ao projeto. O maximo seria abuso de envio de eventos falsos, tratavel com filtros e rate limit no Sentry. Isso nao caracteriza exposicao de credencial sensivel.",
+        "api_failure": false
+      },
+      {
+        "id": "S-F09",
+        "category": "exposed_secret",
+        "expected": "false_positive",
+        "predicted": "false_positive",
+        "severity": null,
+        "confidence": 0.8,
+        "reasoning": "O match esta em um arquivo de internacionalizacao, dentro de um objeto labels com chaves password e email (\"E-mail\"). O padrao indica um rotulo de interface (texto exibido ao usuario), e nao uma senha real. A baixa entropia (3.6) reforca essa leitura.",
+        "api_failure": false
+      },
+      {
+        "id": "S-F10",
+        "category": "exposed_secret",
+        "expected": "false_positive",
+        "predicted": "false_positive",
+        "severity": null,
+        "confidence": 0.85,
+        "reasoning": "O valor mascarado comeca com {{AU...EN}}, padrao tipico de placeholder de template (ex.: {{AUTH_TOKEN}}). O comentario e o formato indicam substituicao no servidor. No arquivo estatico analisado ha apenas o marcador, sem token real.",
+        "api_failure": false
+      },
+      {
+        "id": "S-F11",
+        "category": "exposed_secret",
+        "expected": "false_positive",
+        "predicted": "needs_review",
+        "severity": null,
+        "confidence": 0.6,
+        "reasoning": "A chave Algolia e usada em algoliasearch no front-end, padrao comum para search-only keys, que sao publicas por design. Porem a unica indicacao de que a chave e search-only e um comentario no proprio codigo, que e conteudo nao confiavel. O formato de uma admin key e o de uma search key sao indistinguiveis. Se for admin key ou tiver ACLs de escrita, o impacto seria alto. E necessario confirmar no painel da Algolia as ACLs associadas a essa chave.",
+        "api_failure": false
+      },
+      {
+        "id": "S-F12",
+        "category": "exposed_secret",
+        "expected": "false_positive",
+        "predicted": "false_positive",
+        "severity": null,
+        "confidence": 0.95,
+        "reasoning": "O valor e o sitekey passado a grecaptcha.render. A site key do reCAPTCHA (prefixo 6L) e publica por design e precisa estar no front-end. A secret key correspondente nao aparece na evidencia.",
+        "api_failure": false
+      },
+      {
+        "id": "S-F13",
+        "category": "exposed_secret",
+        "expected": "false_positive",
+        "predicted": "false_positive",
+        "severity": null,
+        "confidence": 0.85,
+        "reasoning": "O match esta em um comentario descrito como exemplo de payload de login, com usuario \"demo\", em um arquivo de ajuda. A entropia muito baixa (2.8) e o contexto documental indicam valor ilustrativo, nao credencial real. Nao ha evidencia de que a conta demo exista ou funcione.",
+        "api_failure": false
+      },
+      {
+        "id": "S-F14",
+        "category": "exposed_secret",
+        "expected": "false_positive",
+        "predicted": "false_positive",
+        "severity": null,
+        "confidence": 0.9,
+        "reasoning": "O valor esta em um comentario do tipo \"preencha com a sua chave\". O valor mascarado termina em XXXX, padrao de placeholder, e a entropia e muito baixa (1.9), incompativel com um Access Key ID real. Trata-se de instrucao de configuracao com valor de exemplo.",
+        "api_failure": false
+      },
+      {
+        "id": "S-F15",
+        "category": "exposed_secret",
+        "expected": "false_positive",
+        "predicted": "false_positive",
+        "severity": null,
+        "confidence": 0.9,
+        "reasoning": "O valor esta atribuido a PUBLIC_VAPID_KEY e e usado como applicationServerKey em registration.pushManager.subscribe. Esse e o uso padrao da chave publica VAPID da Web Push API, que precisa estar no navegador para criar a inscricao de push e nao e um segredo. O prefixo 'B' e o tamanho (cerca de 87 caracteres) batem com uma chave publica P-256 nao comprimida codificada em base64url. A evidencia nao mostra exposicao da chave privada VAPID correspondente.",
+        "api_failure": false
+      },
+      {
+        "id": "S-F16",
+        "category": "exposed_secret",
+        "expected": "false_positive",
+        "predicted": "false_positive",
+        "severity": null,
+        "confidence": 0.95,
+        "reasoning": "O valor com prefixo 'G-' e passado para gtag(\"config\", ...) com o comentario '// Google Analytics'. Isso corresponde a um Measurement ID do GA4, um identificador publico que precisa estar no cliente para o rastreamento funcionar. Ele nao e uma credencial de autenticacao, e a baixa entropia (3.3) reforca que se trata de um identificador, nao de um segredo.",
+        "api_failure": false
+      },
+      {
+        "id": "E-R01",
+        "category": "exposed_endpoint",
+        "expected": "true_positive",
+        "predicted": "needs_review",
+        "severity": null,
+        "confidence": 0.55,
+        "reasoning": "O arquivo admin.chunk.81f0.js é servido em /static/js/ e referencia 3 endpoints sob /api. Os caminhos estão mascarados, então não dá para identificar quais são. O nome do chunk sugere funcionalidade administrativa, mas a simples presença de rotas no bundle não prova que estejam acessíveis sem autenticação ou autorização. Não há resposta HTTP nem teste de controle de acesso na evidência.",
+        "api_failure": false
+      },
+      {
+        "id": "E-R02",
+        "category": "exposed_endpoint",
+        "expected": "true_positive",
+        "predicted": "needs_review",
+        "severity": null,
+        "confidence": 0.6,
+        "reasoning": "O debug.c4c4.js publicado em produção referencia dois caminhos com aparência interna: um termina em /env e outro em dump. Esses nomes podem indicar exposição de variáveis de ambiente ou de dumps. Porém os caminhos estão parcialmente mascarados e não há evidência de que respondam publicamente ou retornem dados sensíveis. É preciso verificar manualmente, de forma autorizada, se as rotas existem e exigem autenticação.",
+        "api_failure": false
+      },
+      {
+        "id": "E-R03",
+        "category": "exposed_endpoint",
+        "expected": "true_positive",
+        "predicted": "needs_review",
+        "severity": null,
+        "confidence": 0.6,
+        "reasoning": "O metrics.d5d5.js referencia /actuator/env e outros endpoints do Spring Boot Actuator, aparentemente um dump e o health. Se /actuator/env estiver acessível, pode vazar configurações e segredos. Porém a evidência mostra apenas a string no JavaScript, sem resposta do servidor. O endpoint health costuma ser benigno. Validar a exposição real depende de uma checagem autorizada da resposta.",
+        "api_failure": false
+      },
+      {
+        "id": "E-R04",
+        "category": "exposed_endpoint",
+        "expected": "true_positive",
+        "predicted": "needs_review",
+        "severity": null,
+        "confidence": 0.6,
+        "reasoning": "O backup.e6e6.js referencia /api/backup/download?file=db.sql. Isso sugere uma funcionalidade de download de backup de banco de dados com parâmetro de arquivo, que poderia permitir acesso a dumps ou path traversal. Também há outro caminho mascarado iniciado por /gra... (possivelmente GraphQL). Não há evidência de que o endpoint esteja acessível, sem autenticação, ou que retorne conteúdo. A prioridade de revisão manual autorizada é alta, mas o risco não está comprovado.",
+        "api_failure": false
+      },
+      {
+        "id": "E-F01",
+        "category": "exposed_endpoint",
+        "expected": "false_positive",
+        "predicted": "false_positive",
+        "severity": null,
+        "confidence": 0.9,
+        "reasoning": "Os endpoints extraídos são recursos estáticos públicos (.png, .css e /favicon.ico) referenciados por um bundle de assets. É ruído típico de extração por regex, sem indicação de risco.",
+        "api_failure": false
+      },
+      {
+        "id": "E-F02",
+        "category": "exposed_endpoint",
+        "expected": "false_positive",
+        "predicted": "false_positive",
+        "severity": null,
+        "confidence": 0.75,
+        "reasoning": "O catalogo.a8a8.js referencia endpoints de catálogo de uma loja, aparentemente produtos, categorias e /api/v1/busca. São funcionalidades públicas esperadas em e-commerce e consumidas pelo frontend. Nada na evidência indica exposição de dados sensíveis.",
+        "api_failure": false
+      },
+      {
+        "id": "E-F03",
+        "category": "exposed_endpoint",
+        "expected": "false_positive",
+        "predicted": "false_positive",
+        "severity": null,
+        "confidence": 0.95,
+        "reasoning": "As URLs são serviços públicos de terceiros (Google Tag Manager e Google Fonts), comumente incluídos em sites. Não representam exposição de endpoint do alvo.",
+        "api_failure": false
+      },
+      {
+        "id": "E-F04",
+        "category": "exposed_endpoint",
+        "expected": "false_positive",
+        "predicted": "false_positive",
+        "severity": null,
+        "confidence": 0.95,
+        "reasoning": "Os caminhos /sobre, /contato e uma página de política (provavelmente de privacidade) são páginas institucionais públicas. É ruído sem impacto de segurança.",
+        "api_failure": false
+      }
+    ]
+  ],
+  "summary": {
+    "accuracy": {
+      "mean": 0.8416666666666667,
+      "min": 0.825,
+      "max": 0.85
+    },
+    "accuracy_decided": {
+      "mean": 1.0,
+      "min": 1.0,
+      "max": 1.0
+    },
+    "precision": {
+      "mean": 1.0,
+      "min": 1.0,
+      "max": 1.0
+    },
+    "recall": {
+      "mean": 0.7833333333333333,
+      "min": 0.75,
+      "max": 0.8
+    },
+    "specificity": {
+      "mean": 0.9,
+      "min": 0.9,
+      "max": 0.9
+    },
+    "coverage": {
+      "mean": 0.8416666666666667,
+      "min": 0.825,
+      "max": 0.85
+    },
+    "dangerous_miss_rate": {
+      "mean": 0.0,
+      "min": 0.0,
+      "max": 0.0
+    }
+  },
+  "sources": [
+    "avaliacao-20261124-1712.json",
+    "avaliacao-20261124-1720.json"
+  ]
+}
