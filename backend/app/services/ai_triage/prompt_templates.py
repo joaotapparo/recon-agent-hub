@@ -4,6 +4,12 @@ import re
 from app.models import AIVerdict, Domain, Finding
 
 _SECRET_SHAPE = re.compile(r"^[A-Za-z0-9_\-\.=+/]+$")
+# nome de dominio (ex.: recon-lab-site.onrender.com) nunca e segredo
+_HOSTNAME = re.compile(
+    r"^(?=.{4,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$", re.IGNORECASE
+)
+# hash do arquivo analisado (js_sha256, sha256) identifica o arquivo, nao e credencial
+_HASH_KEYS = {"sha256", "js_sha256", "sha1", "hash"}
 
 _SECRET_KEYS = {
     "match",
@@ -159,6 +165,8 @@ def _collect_secrets(node: object) -> set[str]:
     if isinstance(node, dict):
         found: set[str] = set()
         for key, value in node.items():
+            if str(key).lower() in _HASH_KEYS:
+                continue
             if str(key).lower() in _SECRET_KEYS and isinstance(value, str) and value:
                 found.add(value)
             else:
@@ -190,7 +198,19 @@ def _redact(node: object, pattern: re.Pattern[str]) -> object:
 
 
 def _looks_like_secret(value: str) -> bool:
-    return len(value) >= 16 and bool(_SECRET_SHAPE.match(value))
+    """
+    Heuristica para texto solto (os formatos conhecidos e os campos com nome
+    de segredo sao tratados a parte). Exige letras E digitos: segredo
+    aleatorio quase sempre mistura os dois, enquanto nomes como
+    "aws-access-key-id" ou "Permissions-Policy" nao tem digitos.
+    """
+    return (
+        len(value) >= 16
+        and bool(_SECRET_SHAPE.match(value))
+        and any(char.isdigit() for char in value)
+        and any(char.isalpha() for char in value)
+        and not _HOSTNAME.match(value)
+    )
 
 
 def _mask(value: str) -> str:
