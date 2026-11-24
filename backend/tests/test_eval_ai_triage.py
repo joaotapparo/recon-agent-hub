@@ -123,6 +123,20 @@ def test_falha_da_api_invalida_a_rodada(cases, monkeypatch):
         asyncio.run(ev.evaluate(1, cases))
 
 
+def test_todos_os_modelos_fora_do_ar_vira_falha_da_api_e_nao_quebra(cases, monkeypatch):
+    class SemModelos:
+        async def triage_batch(self, findings):
+            raise TimeoutError("sem resposta")
+
+        @property
+        def model(self):
+            raise IndexError("lista de modelos vazia")
+
+    monkeypatch.setattr(ai_triage, "get_triage_provider", lambda: SemModelos())
+    with pytest.raises(RuntimeError, match="falha da API"):
+        asyncio.run(ev.evaluate(1, cases))
+
+
 def test_sem_chave_o_script_avisa(monkeypatch, tmp_path, capsys):
     monkeypatch.setattr(ev.settings, "gemini_api_key", "")
     assert ev.main(["--runs", "1", "--out", str(tmp_path)]) == 1

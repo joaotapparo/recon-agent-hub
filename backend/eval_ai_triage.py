@@ -102,7 +102,11 @@ async def run_once(cases: list[dict]) -> tuple[list[dict], str]:
                         "api_failure": reasoning.startswith(_API_FAILURE_PREFIXES),
                     }
                 )
-        return rows, provider.model
+        try:
+            model = provider.model
+        except IndexError:  # todos os modelos da lista cairam nesta rodada
+            model = "nenhum (todos indisponiveis)"
+        return rows, model
     finally:
         ai_triage.get_triage_provider = original
         engine.dispose()
