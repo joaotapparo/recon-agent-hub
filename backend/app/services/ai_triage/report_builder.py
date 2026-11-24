@@ -10,7 +10,6 @@ from google.genai.errors import APIError
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
-from app.config import settings
 from app.models import AIVerdict, Domain, Finding, Report, ScanJob, Severity
 from app.services.ai_triage.prompt_templates import (
     finding_payload,
@@ -172,12 +171,13 @@ async def generate_report(
     markdown = render_report(domain, findings, language=language)
     if any(f.ai_verdict != AIVerdict.FALSE_POSITIVE for f in findings):
         try:
-            markdown = await get_triage_provider().generate_report(
+            provider = get_triage_provider()
+            markdown = await provider.generate_report(
                 domain, findings, language=language
             )
             if not markdown.strip():
                 raise RuntimeError("o provider devolveu um relatorio vazio")
-            model = settings.gemini_model
+            model = provider.model
         except (
             APIError,
             httpx.HTTPError,

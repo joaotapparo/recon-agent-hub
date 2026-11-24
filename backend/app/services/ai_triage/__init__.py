@@ -9,6 +9,7 @@ Markdown persistido. Chamado pelo orchestrator depois do Codigo Web (#20).
 import asyncio
 import logging
 from collections import defaultdict
+from dataclasses import replace
 from datetime import UTC, datetime
 
 from sqlalchemy.orm import Session
@@ -52,7 +53,17 @@ async def triage_findings(db: Session, scan_job: ScanJob) -> None:
     )
     if not pending:
         return
-    provider = get_triage_provider()
+    try:
+        provider = get_triage_provider()
+    except ValueError as exc:
+        # sem isso o achado fica "aguardando triagem" pra sempre no painel
+        skipped = replace(
+            _UNAVAILABLE, reasoning=f"Triagem por IA nao executada: {exc}."
+        )
+        for finding in pending:
+            _apply_result(finding, skipped)
+        await asyncio.to_thread(db.commit)
+        raise
 
     for batch in _batches(pending):
         try:

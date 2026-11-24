@@ -23,7 +23,7 @@ Requisitos: Python 3.11+ e [uv](https://docs.astral.sh/uv/).
 ```bash
 cd backend
 uv sync
-cp .env.example .env   # preencha GEMINI_API_KEY quando chegar na fase de triagem por IA
+cp .env.example .env   # preencha GEMINI_API_KEY, senão a triagem por IA não roda
 uv run alembic upgrade head
 uv run uvicorn app.main:app --reload
 ```
@@ -41,6 +41,18 @@ A triagem vai em lotes: achados da mesma categoria seguem juntos, até
 `finding_id`; achado que não voltar, vier repetido ou estiver num lote que
 falhou fica como `needs_review`. O tamanho do lote e o timeout ainda não foram
 calibrados com o Gemini real triando em lote.
+
+Os modelos seguem a ordem de `GEMINI_MODELS`, do melhor Flash gratuito para o
+mais barato. Se um modelo cai (5xx ou timeout, depois das tentativas), fica sem
+cota (429) ou foi descontinuado (404), o scan continua no próximo e não volta
+para ele até o fim daquele scan. Se todos caírem, os lotes seguintes vão direto
+para revisão, sem chamar o Gemini de novo. Erro de requisição ou de chave não
+troca de modelo, porque outro modelo falharia igual. O relatório grava em
+`ai_model_used` o modelo que escreveu a síntese. Para fixar um modelo só, use
+uma lista com um item, como `GEMINI_MODELS=["gemini-3.6-flash"]`.
+
+Sem `GEMINI_API_KEY`, o scan conclui, mas os achados vão para revisão com o
+motivo "Triagem por IA nao executada", e o relatório sai no modo básico.
 
 O PDF (`GET /api/scans/{id}/report.pdf`) é gerado na hora a partir do Markdown
 salvo, com `xhtml2pdf` e Jinja2. Não precisa instalar nada no sistema: o

@@ -125,6 +125,18 @@ def test_falha_do_provider_vira_needs_review(db, monkeypatch):
     assert finding.triaged_at is not None
 
 
+def test_sem_chave_o_achado_vai_pra_revisao_com_o_motivo(db, monkeypatch):
+    scan_job, finding = _seed_pending_finding(db)
+    monkeypatch.setattr(ai_triage.settings, "gemini_api_key", "")
+
+    with pytest.raises(ValueError):
+        asyncio.run(ai_triage.triage_findings(db, scan_job))
+
+    db.refresh(finding)
+    assert finding.ai_verdict == AIVerdict.NEEDS_REVIEW
+    assert "GEMINI_API_KEY" in finding.ai_reasoning
+
+
 def test_mascara_secret_mesmo_embutido_no_contexto():
     print(
         "\n[CENARIO 3] Secret no meio de um trecho de codigo -> e mascarado antes de sair"
@@ -234,6 +246,7 @@ def test_ignora_finding_ja_triado(db, monkeypatch):
 
 def test_timeout_esgotado_vira_needs_review(db, monkeypatch):
     scan_job, finding = _seed_pending_finding(db)
+    monkeypatch.setattr(ai_triage.settings, "gemini_models", ["gemini-teste"])
     generate = AsyncMock(side_effect=httpx.ReadTimeout("timeout simulado"))
     client = SimpleNamespace(
         aio=SimpleNamespace(models=SimpleNamespace(generate_content=generate))

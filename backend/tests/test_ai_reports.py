@@ -69,7 +69,7 @@ def finding(scan, **changes):
 
 @pytest.fixture
 def provider(monkeypatch):
-    provider = SimpleNamespace(generate_report=AsyncMock())
+    provider = SimpleNamespace(generate_report=AsyncMock(), model="gemini-teste")
     monkeypatch.setattr(ai_triage, "get_triage_provider", lambda: provider)
     return provider
 
@@ -214,7 +214,7 @@ def test_grava_relatorio_e_reabre_por_outra_sessao(db, scan, provider):
         assert saved.domain_id == domain_id
         assert "Síntese da IA." in saved.markdown_content
         assert "1 confirmado(s)" in saved.summary
-        assert saved.ai_model_used == ai_triage.settings.gemini_model
+        assert saved.ai_model_used == "gemini-teste"
         assert saved.generated_at is not None
     assert provider.generate_report.await_count == 1
     assert provider.generate_report.call_args.kwargs["language"] == "pt-BR"
@@ -240,7 +240,7 @@ def test_fluxo_do_provider_ate_relatorio_persistido_com_api_simulada(
         saved = fresh.get(Report, report_id)
         assert "Credencial exposta no JS." in saved.markdown_content
         assert "Reprodução" in saved.markdown_content
-        assert saved.ai_model_used == ai_triage.settings.gemini_model
+        assert saved.ai_model_used == ai_triage.settings.gemini_models[0]
     assert generate.await_count == 1
 
 

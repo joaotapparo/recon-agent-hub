@@ -66,14 +66,20 @@ def _normalize(parsed: _GeminiTriageResponse) -> TriageResult:
 
 
 class GeminiTriageProvider:
-    def __init__(self, api_key: str | None = None, model: str | None = None) -> None:
-        self._model = model or settings.gemini_model
+    def __init__(
+        self, api_key: str | None = None, models: list[str] | None = None
+    ) -> None:
+        self._models = list(models or settings.gemini_models)
         self._client = genai.Client(
             api_key=api_key or settings.gemini_api_key,
             http_options=types.HttpOptions(
                 timeout=settings.gemini_timeout_seconds * 1000
             ),
         )
+
+    @property
+    def model(self) -> str:
+        return self._models[0]
 
     async def triage_batch(self, findings: list[Finding]) -> dict[int, TriageResult]:
         response = await self._generate_content(build_triage_prompt(findings))
@@ -113,10 +119,32 @@ class GeminiTriageProvider:
     async def _generate_content(
         self, prompt: str, *, response_schema: type[BaseModel] = _GeminiTriageBatch
     ) -> types.GenerateContentResponse:
+        while self._models:
+            try:
+                return await self._generate_with_retry(prompt, response_schema)
+            except Exception as exc:
+                if not _can_fallback(exc):
+                    raise
+                # modelo sem cota ou fora do ar fica de fora pelo resto do scan
+                failed = self._models.pop(0)
+                if not self._models:
+                    raise
+                logger.warning(
+                    "Gemini %s indisponivel (%s), passando para %s",
+                    failed,
+                    exc,
+                    self.model,
+                )
+        # todos cairam: os proximos lotes vao direto pra revisao, sem esperar timeout
+        raise RuntimeError("nenhum modelo do Gemini disponivel neste scan")
+
+    async def _generate_with_retry(
+        self, prompt: str, response_schema: type[BaseModel]
+    ) -> types.GenerateContentResponse:
         for attempt in range(1, _MAX_ATTEMPTS + 1):
             try:
                 return await self._client.aio.models.generate_content(
-                    model=self._model,
+                    model=self.model,
                     contents=prompt,
                     config=types.GenerateContentConfig(
                         temperature=settings.gemini_temperature,
@@ -129,7 +157,8 @@ class GeminiTriageProvider:
                     raise
                 delay = _INITIAL_BACKOFF_SECONDS * 2 ** (attempt - 1)
                 logger.warning(
-                    "Gemini falhou (tentativa %d/%d), retry em %.1fs: %s",
+                    "Gemini %s falhou (tentativa %d/%d), retry em %.1fs: %s",
+                    self.model,
                     attempt,
                     _MAX_ATTEMPTS,
                     delay,
@@ -146,3 +175,8 @@ def _is_retryable(exc: Exception) -> bool:
     return isinstance(exc, (httpx.TimeoutException, TimeoutError)) or (
         getattr(exc, "code", None) in _RETRYABLE_STATUS_CODES
     )
+
+
+def _can_fallback(exc: Exception) -> bool:
+    # 404: o modelo foi descontinuado ou nao existe mais pra essa chave
+    return _is_retryable(exc) or getattr(exc, "code", None) == 404

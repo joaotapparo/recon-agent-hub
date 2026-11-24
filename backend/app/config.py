@@ -19,7 +19,16 @@ class Settings(BaseSettings):
     ai_triage_provider: str = "gemini"
     ai_triage_batch_size: int = Field(default=10, gt=0)
     gemini_api_key: str = ""
-    gemini_model: str = "gemini-3.6-flash"
+    # do melhor Flash gratuito pro mais barato: se um modelo cai ou fica sem cota, vai pro proximo
+    gemini_models: list[str] = Field(
+        default=[
+            "gemini-3.8-flash",
+            "gemini-3.6-flash",
+            "gemini-3.5-flash-lite",
+            "gemini-3.1-flash-lite",
+        ],
+        min_length=1,
+    )
     gemini_temperature: float = 1.0
     # com 30s o resumo deu timeout no teste real; com 60s e retry, concluiu.
     gemini_timeout_seconds: int = Field(default=60, gt=0)

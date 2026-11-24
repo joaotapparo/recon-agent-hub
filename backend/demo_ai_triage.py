@@ -72,6 +72,8 @@ CASOS = [
 class _MockProvider:
     """Respostas fixas so pra demo offline."""
 
+    model = "mock"
+
     async def triage(self, finding: Finding) -> TriageResult:
         if "Stripe" in finding.title:
             return TriageResult(
