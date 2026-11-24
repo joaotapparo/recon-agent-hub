@@ -182,6 +182,9 @@ export default function SecurityFindings({ findingsList }: SecurityFindingsProps
             { value: 'secret', label: 'Segredo' },
             { value: 'endpoint', label: 'Endpoint' },
             { value: 'sensitive_file', label: 'Arquivos sensíveis' },
+            { value: 'web_config', label: 'Configuração web' },
+            { value: 'vulnerable_component', label: 'Software vulnerável' },
+            { value: 'credential_leak', label: 'Vazamento de dados' },
             { value: 'takeover', label: 'Takeover' },
             { value: 'open_port', label: 'Porta aberta' },
           ]}
@@ -220,7 +223,7 @@ export default function SecurityFindings({ findingsList }: SecurityFindingsProps
               <tr
                 key={f.id}
                 onClick={() => setSelected(f)}
-                className="border-b border-border hover:bg-surface-2 transition-colors cursor-pointer"
+                className="border-b border-border hover:bg-surface-2 transition-colors cursor-pointer animate-row-in"
               >
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-1.5">

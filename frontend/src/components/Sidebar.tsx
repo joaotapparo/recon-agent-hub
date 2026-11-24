@@ -64,6 +64,9 @@ export default function Sidebar({
                     {item.status === 'running' && (
                       <p className="text-[10px] text-accent mt-0.5 animate-pulse">Escaneando...</p>
                     )}
+                    {item.needsVerification && item.status !== 'running' && (
+                      <p className="text-[10px] text-med mt-0.5">Aguardando verificação DNS</p>
+                    )}
                     {item.status === 'error' && (
                       <p className="text-[10px] text-crit mt-0.5">Com erro</p>
                     )}

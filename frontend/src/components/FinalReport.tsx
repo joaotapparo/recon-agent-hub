@@ -97,6 +97,19 @@ export default function FinalReport({ dataset }: FinalReportProps) {
               <span>{busy === 'view' ? 'Carregando...' : 'Visualizar Relatório'}</span>
             </button>
 
+            <a
+              href={ready ? `/relatorio/${dataset.domainId}/${dataset.scanId}` : undefined}
+              target="_blank"
+              rel="noopener"
+              aria-disabled={!ready}
+              className={`${secondaryButton} ${ready ? '' : 'opacity-50 pointer-events-none'}`}
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 3v18h18" /><path d="m7 15 4-4 3 3 5-6" />
+              </svg>
+              <span>Relatório executivo</span>
+            </a>
+
             <button onClick={handlePdf} disabled={!ready || busy !== null} className={secondaryButton}>
               {busy === 'pdf' ? spinner : (
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">

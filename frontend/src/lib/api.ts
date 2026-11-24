@@ -10,6 +10,7 @@ export type ScanStatus =
   | 'probing'
   | 'port_scanning'
   | 'checking_takeover'
+  | 'web_audit'
   | 'scanning_js'
   | 'triaging'
   | 'completed'
@@ -20,16 +21,28 @@ export type FindingCategory =
   | 'open_port'
   | 'exposed_secret'
   | 'exposed_endpoint'
-  | 'misconfiguration';
+  | 'misconfiguration'
+  | 'vulnerable_component'
+  | 'credential_leak';
 
 export type AIVerdict = 'pending' | 'true_positive' | 'false_positive' | 'needs_review';
 export type Severity = 'info' | 'low' | 'medium' | 'high' | 'critical';
+
+export interface VerificationChallenge {
+  record_name: string;
+  record_type: string;
+  record_value: string;
+}
 
 export interface ApiDomain {
   id: number;
   name: string;
   authorized: boolean;
   authorized_at: string | null;
+  verified: boolean;
+  verified_at: string | null;
+  /** presente enquanto o domínio não provou posse por DNS */
+  verification: VerificationChallenge | null;
   created_at: string;
   latest_scan_id: number | null;
   latest_scan_status: ScanStatus | null;
@@ -50,6 +63,8 @@ export interface ApiSubdomain {
   open_ports: ApiOpenPort[] | null;
   takeover_candidate: boolean;
   takeover_fingerprint: string | null;
+  /** null = não verificado; "" = nenhum firewall detectado */
+  waf: string | null;
 }
 
 export interface ApiScanJob {
@@ -89,9 +104,35 @@ export interface ApiReport {
   generated_at: string;
 }
 
+export interface ApiScanSummary {
+  id: number;
+  status: ScanStatus;
+  created_at: string;
+  started_at: string | null;
+  finished_at: string | null;
+  subdomains: number;
+  active_hosts: number;
+  open_ports: number;
+  findings: number;
+  by_severity: Partial<Record<Severity | 'unrated', number>>;
+}
+
+export type EventKind = 'info' | 'found' | 'warn' | 'alert';
+
+/** Linha do feed ao vivo (GET /api/scans/{id}/events). */
+export interface ApiScanEvent {
+  id: number;
+  stage: string;
+  kind: EventKind;
+  message: string;
+  created_at: string;
+}
+
 export interface SubmitResponse {
   domain_id: number;
-  scan_job_id: number;
+  /** null quando o domínio ainda precisa ser verificado por DNS */
+  scan_job_id: number | null;
+  verification: VerificationChallenge | null;
 }
 
 export class ApiError extends Error {
@@ -140,12 +181,26 @@ export const api = {
       body: JSON.stringify({ name, authorization_confirmed: authorizationConfirmed }),
     }),
 
+  verifyDomain: (domainId: number) =>
+    request<SubmitResponse>(`/api/domains/${domainId}/verify`, { method: 'POST' }),
+
   rescan: (domainId: number) =>
     request<SubmitResponse>(`/api/domains/${domainId}/rescan`, { method: 'POST' }),
+
+  getDomain: (domainId: number) => request<ApiDomain>(`/api/domains/${domainId}`),
+
+  listDomainScans: (domainId: number) => request<ApiScanSummary[]>(`/api/domains/${domainId}/scans`),
 
   getScan: (scanId: number) => request<ApiScanJob>(`/api/scans/${scanId}`),
 
   getFindings: (scanId: number) => request<ApiFinding[]>(`/api/scans/${scanId}/findings`),
+
+  getEvents: (scanId: number, afterId = 0) =>
+    request<ApiScanEvent[]>(`/api/scans/${scanId}/events?after_id=${afterId}`),
+
+  listScreenshots: (scanId: number) => request<string[]>(`/api/scans/${scanId}/screenshots`),
+  screenshotUrl: (scanId: number, hostname: string) =>
+    `${BASE_URL}/api/scans/${scanId}/screenshots/${encodeURIComponent(hostname)}.jpg`,
 
   getReport: (scanId: number) => request<ApiReport>(`/api/scans/${scanId}/report`),
 
@@ -159,6 +214,7 @@ export const RUNNING_STATUSES: ScanStatus[] = [
   'probing',
   'port_scanning',
   'checking_takeover',
+  'web_audit',
   'scanning_js',
   'triaging',
 ];
