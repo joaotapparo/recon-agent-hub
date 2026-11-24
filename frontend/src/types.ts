@@ -15,8 +15,16 @@ export type FindingType =
   | 'vulnerable_component'
   | 'credential_leak';
 
+export interface FindingReview {
+  note: string | null;
+  date: string;
+}
+
 export interface Finding {
   id: string;
+  /** id numérico na API, usado na revisão humana */
+  apiId: number;
+  /** decisão final: a do profissional, se ele revisou; senão a da IA */
   severity: SeverityLevel;
   type: FindingType;
   /** ferramenta que gerou o achado (ex.: tls-check, gitleaks) */
@@ -26,6 +34,10 @@ export interface Finding {
   file?: string;
   line?: number;
   status: FindingStatus;
+  /** o que a IA sugeriu, guardado mesmo depois da revisão */
+  aiStatus: FindingStatus;
+  aiSeverity: SeverityLevel;
+  review: FindingReview | null;
   date: string;
   aiValidation: string;
   description: string;

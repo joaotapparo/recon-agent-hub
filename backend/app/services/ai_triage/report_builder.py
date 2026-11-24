@@ -20,30 +20,54 @@ from app.services.ai_triage.prompt_templates import (
 logger = logging.getLogger(__name__)
 
 
+# Tudo aqui usa a decisao final (final_verdict/final_severity): a do
+# profissional quando ele revisou o achado, senao a da IA.
+
+
 def _confirmed(finding: Finding) -> bool:
     return (
-        finding.ai_verdict == AIVerdict.TRUE_POSITIVE
-        and finding.ai_severity is not None
+        finding.final_verdict == AIVerdict.TRUE_POSITIVE
+        and finding.final_severity is not None
     )
 
 
-def _groups(findings: list[Finding]) -> tuple[list[Finding], list[Finding]]:
+def _discarded(finding: Finding) -> bool:
+    return finding.final_verdict == AIVerdict.FALSE_POSITIVE
+
+
+def _groups(
+    findings: list[Finding],
+) -> tuple[list[Finding], list[Finding], list[Finding]]:
     confirmed = [f for f in findings if _confirmed(f)]
-    review = [
-        f
-        for f in findings
-        if not _confirmed(f) and f.ai_verdict != AIVerdict.FALSE_POSITIVE
-    ]
+    review = [f for f in findings if not _confirmed(f) and not _discarded(f)]
+    discarded = [f for f in findings if _discarded(f)]
     order = list(reversed(Severity))
-    confirmed.sort(key=lambda f: order.index(f.ai_severity))
-    return confirmed, review
+    confirmed.sort(key=lambda f: order.index(f.final_severity))
+    return confirmed, review, discarded
 
 
 def report_summary(findings: list[Finding]) -> str:
     confirmed = sum(_confirmed(finding) for finding in findings)
-    discarded = sum(f.ai_verdict == AIVerdict.FALSE_POSITIVE for f in findings)
+    discarded = sum(_discarded(finding) for finding in findings)
     review = len(findings) - confirmed - discarded
-    return f"{confirmed} confirmado(s), {review} para revisão e {discarded} falso(s) positivo(s)."
+    text = f"{confirmed} confirmado(s), {review} para revisão e {discarded} falso(s) positivo(s)."
+    reviewed = sum(finding.reviewed for finding in findings)
+    if reviewed:
+        text += f" {reviewed} achado(s) revisado(s) pelo profissional."
+    return text
+
+
+def _verdict_line(finding: Finding) -> str:
+    if not finding.reviewed:
+        return f"**Veredito:** {finding.ai_verdict.value} (IA)"
+    return (
+        f"**Veredito:** {finding.final_verdict.value} (revisado pelo profissional; "
+        f"a IA sugeriu {finding.ai_verdict.value})"
+    )
+
+
+def _decided_by(finding: Finding) -> str:
+    return "profissional" if finding.reviewed else "IA"
 
 
 def _text(value: str) -> str:
@@ -81,7 +105,7 @@ def render_report(
     fallback: bool = False,
 ) -> str:
     validate_report_language(language)
-    confirmed, review = _groups(findings)
+    confirmed, review, discarded = _groups(findings)
     parts = [
         "# Relatório de segurança",
         f"Domínio: {_text(domain.name)}",
@@ -92,6 +116,11 @@ def render_report(
         parts.append("Nenhum achado disponível para este scan.")
     if summary:
         parts.append(_text(_redact_summary(summary, findings)))
+        if any(f.reviewed for f in findings):
+            parts.append(
+                "O parágrafo acima foi escrito pela IA antes da revisão do profissional. "
+                "As contagens e as seções abaixo já refletem a revisão."
+            )
     if fallback:
         parts.append(
             "Síntese automática indisponível. Relatório montado com os dados disponíveis."
@@ -108,20 +137,26 @@ def render_report(
             data = finding_payload(finding)
             title = _text(" ".join(data["title"].splitlines()))
             severity = (
-                finding.ai_severity.value.upper() if _confirmed(finding) else "REVISÃO"
+                finding.final_severity.value.upper()
+                if _confirmed(finding)
+                else "REVISÃO"
             )
             parts.extend(
                 [
                     f"### {severity} · {title}",
                     f"**Alvo:** {_text(data['target'])}",
                     f"**Categoria:** {finding.category.value} · **Origem:** {_text(data['source_tool'])}",
-                    f"**Veredito:** {finding.ai_verdict.value}",
-                    "**Análise:** "
+                    _verdict_line(finding),
+                    "**Análise da IA:** "
                     + _text(data["reasoning"] or "Sem análise conclusiva disponível."),
-                    "#### Evidência",
-                    _block(data["raw_evidence"]),
                 ]
             )
+            if finding.human_note:
+                parts.append(
+                    "**Nota do profissional:** "
+                    + _text(" ".join(finding.human_note.split()))
+                )
+            parts.extend(["#### Evidência", _block(data["raw_evidence"])])
             if _confirmed(finding):
                 for label, field in [
                     ("Reprodução", "reproduction_steps"),
@@ -133,6 +168,20 @@ def render_report(
                             _block(data[field] or "Não informado na triagem."),
                         ]
                     )
+
+    # Falsos positivos nao somem do relatorio: ficam listados (sem a
+    # evidencia) pra que um descarte errado ainda possa ser notado.
+    parts.append("## Descartados como falso positivo")
+    if not discarded:
+        parts.append("Nenhum achado nesta seção.")
+    for finding in discarded:
+        data = finding_payload(finding)
+        title = _text(" ".join(data["title"].splitlines()))
+        reason = finding.human_note if finding.reviewed and finding.human_note else data["reasoning"]
+        parts.append(
+            f"- **{title}** · {_text(data['target'])} · descartado por: {_decided_by(finding)}"
+            + (f" · motivo: {_text(' '.join(reason.split()))}" if reason else "")
+        )
 
     parts.extend(
         [
@@ -168,8 +217,9 @@ async def generate_report(
     validate_report_language(language)
     domain, findings = await asyncio.to_thread(load_scan_findings, db, scan_job)
     model = "none"
+    ai_summary = None
     markdown = render_report(domain, findings, language=language)
-    if any(f.ai_verdict != AIVerdict.FALSE_POSITIVE for f in findings):
+    if any(not _discarded(f) for f in findings):
         try:
             provider = get_triage_provider()
             markdown = await provider.generate_report(
@@ -178,6 +228,7 @@ async def generate_report(
             if not markdown.strip():
                 raise RuntimeError("o provider devolveu um relatorio vazio")
             model = provider.model
+            ai_summary = getattr(provider, "last_summary", None)
         except (
             APIError,
             httpx.HTTPError,
@@ -191,12 +242,38 @@ async def generate_report(
             )
             markdown = render_report(domain, findings, language=language, fallback=True)
     return await asyncio.to_thread(
-        _save_report, db, scan_job, findings, markdown, model
+        _save_report, db, scan_job, findings, markdown, model, ai_summary
+    )
+
+
+def rebuild_report(db: Session, scan_job: ScanJob) -> Report | None:
+    """
+    Remonta o relatorio depois de uma revisao humana, sem chamar a IA de novo:
+    reaproveita o paragrafo que ela ja escreveu e aplica as decisoes do
+    profissional. Sincrono. Devolve None se o scan ainda nao tem relatorio.
+    """
+    report = db.query(Report).filter(Report.scan_job_id == scan_job.id).one_or_none()
+    if report is None:
+        return None
+    domain, findings = load_scan_findings(db, scan_job)
+    fallback = report.ai_summary is None and report.ai_model_used == "none" and any(
+        not _discarded(f) for f in findings
+    )
+    markdown = render_report(
+        domain, findings, summary=report.ai_summary, fallback=fallback
+    )
+    return _save_report(
+        db, scan_job, findings, markdown, report.ai_model_used, report.ai_summary
     )
 
 
 def _save_report(
-    db: Session, scan_job: ScanJob, findings: list[Finding], markdown: str, model: str
+    db: Session,
+    scan_job: ScanJob,
+    findings: list[Finding],
+    markdown: str,
+    model: str,
+    ai_summary: str | None = None,
 ) -> Report:
     report = db.query(Report).filter(Report.scan_job_id == scan_job.id).one_or_none()
     if report is None:
@@ -205,6 +282,7 @@ def _save_report(
     report.summary = report_summary(findings)
     report.markdown_content = markdown
     report.ai_model_used = model
+    report.ai_summary = ai_summary
     report.generated_at = datetime.now(UTC).replace(tzinfo=None)
     db.commit()
     db.refresh(report)

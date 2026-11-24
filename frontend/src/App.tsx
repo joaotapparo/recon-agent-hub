@@ -44,6 +44,8 @@ export default function App() {
   const [datasetError, setDatasetError] = useState<string | null>(null);
   const [isNewScanOpen, setIsNewScanOpen] = useState(false);
   const [rescanning, setRescanning] = useState(false);
+  // incrementado depois de uma revisão humana, pra recarregar o scan aberto
+  const [reloadTick, setReloadTick] = useState(0);
 
   const loadDomains = useCallback(async () => {
     try {
@@ -128,7 +130,7 @@ export default function App() {
     };
     // selected muda de referência a cada poll da lista; dependemos só do que importa
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scanId, scanStatus]);
+  }, [scanId, scanStatus, reloadTick]);
 
   const handleSelect = (id: number) => {
     if (id === selectedId) return;
@@ -310,7 +312,11 @@ export default function App() {
                   subdomains={shown.subdomains}
                   findings={shown.findings}
                 />
-                <SecurityFindings findingsList={shown.findings} />
+                <SecurityFindings
+                  findingsList={shown.findings}
+                  readOnly={replay.active}
+                  onReviewed={() => setReloadTick((t) => t + 1)}
+                />
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                   <Infrastructure
                     subdomainsList={shown.subdomains}

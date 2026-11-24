@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.models import AIVerdict, EventKind, FindingCategory, ScanStatus, Severity
 
@@ -32,6 +32,19 @@ class FindingOut(BaseModel):
     ai_severity: Severity | None = None
     ai_reasoning: str | None = None
     ai_reproduction_steps: str | None = None
+    # revisao humana: a decisao final e a do profissional, quando existe
+    human_verdict: AIVerdict | None = None
+    human_severity: Severity | None = None
+    human_note: str | None = None
+    reviewed_at: datetime | None = None
+    final_verdict: AIVerdict
+    final_severity: Severity | None = None
+
+
+class ReviewIn(BaseModel):
+    verdict: AIVerdict
+    severity: Severity | None = None
+    note: str | None = Field(default=None, max_length=2000)
 
 
 class FindingDetailOut(FindingOut):

@@ -61,5 +61,27 @@ class Finding(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     triaged_at: Mapped[datetime | None] = mapped_column(DateTime)
 
+    # Revisao humana: a palavra final e do profissional. Os campos ai_* nunca
+    # sao sobrescritos, pra dar pra auditar o que a IA sugeriu e o que mudou.
+    human_verdict: Mapped[AIVerdict | None] = mapped_column(Enum(AIVerdict))
+    human_severity: Mapped[Severity | None] = mapped_column(Enum(Severity))
+    human_note: Mapped[str | None] = mapped_column(Text)
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime)
+
     scan_job: Mapped["ScanJob"] = relationship(back_populates="findings")
     subdomain: Mapped["Subdomain | None"] = relationship(back_populates="findings")
+
+    @property
+    def reviewed(self) -> bool:
+        return self.human_verdict is not None
+
+    @property
+    def final_verdict(self) -> AIVerdict:
+        """Decisao que vale: a do profissional, se houver; senao a da IA."""
+        return self.human_verdict or self.ai_verdict
+
+    @property
+    def final_severity(self) -> Severity | None:
+        if self.reviewed:
+            return self.human_severity if self.human_verdict == AIVerdict.TRUE_POSITIVE else None
+        return self.ai_severity

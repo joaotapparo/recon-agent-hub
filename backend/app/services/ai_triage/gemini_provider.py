@@ -70,6 +70,7 @@ class GeminiTriageProvider:
         self, api_key: str | None = None, models: list[str] | None = None
     ) -> None:
         self._models = list(models or settings.gemini_models)
+        self.last_summary: str | None = None
         self._client = genai.Client(
             api_key=api_key or settings.gemini_api_key,
             http_options=types.HttpOptions(
@@ -114,6 +115,8 @@ class GeminiTriageProvider:
         ).summary.strip()
         if not summary:
             raise RuntimeError("Gemini devolveu uma sintese vazia")
+        # guardado pra remontar o relatorio depois de uma revisao humana
+        self.last_summary = summary
         return render_report(domain, findings, summary=summary, language=language)
 
     async def _generate_content(

@@ -1,6 +1,7 @@
 """routers/findings.py - achados de um scan, com filtros (RF14, issue #15)."""
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -24,8 +25,13 @@ def list_findings(
     query = db.query(Finding).filter(Finding.scan_job_id == scan_job_id)
     if category is not None:
         query = query.filter(Finding.category == category)
+    # filtros pela decisao final: a do profissional, se ele revisou
     if severity is not None:
-        query = query.filter(Finding.ai_severity == severity)
+        final_severity = case(
+            (Finding.human_verdict.is_not(None), Finding.human_severity),
+            else_=Finding.ai_severity,
+        )
+        query = query.filter(final_severity == severity)
     if verdict is not None:
-        query = query.filter(Finding.ai_verdict == verdict)
+        query = query.filter(func.coalesce(Finding.human_verdict, Finding.ai_verdict) == verdict)
     return query.order_by(Finding.id).all()

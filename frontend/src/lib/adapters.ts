@@ -298,10 +298,11 @@ function splitSteps(text: string | null): string[] | undefined {
 export function toFinding(f: ApiFinding): Finding {
   const ev = evidenceObject(f.raw_evidence);
   const jsUrl = str(ev.js_url);
-  const status = STATUS_BY_VERDICT[f.ai_verdict];
+  const status = STATUS_BY_VERDICT[f.final_verdict];
   return {
     id: String(f.id),
-    severity: toSeverity(f.ai_severity),
+    apiId: f.id,
+    severity: toSeverity(f.final_severity),
     type: findingType(f),
     sourceTool: f.source_tool,
     title: f.title,
@@ -309,6 +310,9 @@ export function toFinding(f: ApiFinding): Finding {
     file: fileName(jsUrl),
     line: typeof ev.line === 'number' ? ev.line : undefined,
     status,
+    aiStatus: STATUS_BY_VERDICT[f.ai_verdict],
+    aiSeverity: toSeverity(f.ai_severity),
+    review: f.reviewed_at ? { note: f.human_note, date: formatDateTime(f.reviewed_at) } : null,
     date: formatDate(f.created_at),
     aiValidation:
       f.ai_reasoning ??
@@ -350,7 +354,7 @@ export function toDataset(domain: ApiDomain, scan: ApiScanJob, apiFindings: ApiF
         subdomain: f.target,
         cname: str(ev.cname) ?? '—',
         status: str(ev.fingerprint) ?? 'candidato',
-        severity: toSeverity(f.ai_severity),
+        severity: toSeverity(f.final_severity),
       };
     });
 
@@ -364,7 +368,7 @@ export function toDataset(domain: ApiDomain, scan: ApiScanJob, apiFindings: ApiF
         path,
         host: hostOf(jsUrl),
         file: fileName(jsUrl) ?? '—',
-        status: STATUS_BY_VERDICT[f.ai_verdict],
+        status: STATUS_BY_VERDICT[f.final_verdict],
       }));
     });
 
@@ -376,7 +380,7 @@ export function toDataset(domain: ApiDomain, scan: ApiScanJob, apiFindings: ApiF
         type: str(ev.rule) ?? 'secret',
         file: fileName(str(ev.js_url)) ?? '—',
         maskedValue: str(ev.masked_secret) ?? '••••',
-        status: STATUS_BY_VERDICT[f.ai_verdict],
+        status: STATUS_BY_VERDICT[f.final_verdict],
       };
     });
 
@@ -389,7 +393,7 @@ export function toDataset(domain: ApiDomain, scan: ApiScanJob, apiFindings: ApiF
         filename: str(ev.path) ?? fileName(url) ?? url,
         host: hostOf(url),
         accessible: true,
-        severity: toSeverity(f.ai_severity),
+        severity: toSeverity(f.final_severity),
       };
     });
 
@@ -399,8 +403,8 @@ export function toDataset(domain: ApiDomain, scan: ApiScanJob, apiFindings: ApiF
       host: f.source_tool === 'email-security' ? f.target : hostOf(f.target),
       check: WEB_CHECK_LABEL[f.source_tool] ?? f.source_tool,
       title: f.title,
-      status: STATUS_BY_VERDICT[f.ai_verdict],
-      severity: toSeverity(f.ai_severity),
+      status: STATUS_BY_VERDICT[f.final_verdict],
+      severity: toSeverity(f.final_severity),
     }));
 
   // falsos positivos não contam como achados nos números de resumo

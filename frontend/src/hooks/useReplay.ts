@@ -76,7 +76,21 @@ function buildView(src: ReplaySource, played: number): ReplayView {
     .map((f) => {
       // RF09: arquivo sensível já nasce confirmado; o resto espera a IA
       if (aiDone || f.source_tool === 'sensitive-files') return f;
-      return { ...f, ai_verdict: 'pending' as const, ai_severity: null, ai_reasoning: null, ai_reproduction_steps: null, ai_remediation: null };
+      return {
+        ...f,
+        ai_verdict: 'pending' as const,
+        ai_severity: null,
+        ai_reasoning: null,
+        ai_reproduction_steps: null,
+        ai_remediation: null,
+        // a revisão humana acontece depois do scan: no replay ainda não existe
+        human_verdict: null,
+        human_severity: null,
+        human_note: null,
+        reviewed_at: null,
+        final_verdict: 'pending' as const,
+        final_severity: null,
+      };
     });
 
   const scan: ApiScanJob = { ...src.scan, status, subdomains, finished_at: status === 'completed' ? src.scan.finished_at : null };
