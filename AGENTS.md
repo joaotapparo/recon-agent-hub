@@ -368,28 +368,47 @@ não como aprovados.
 
 ## Painel interativo (apresentação)
 
-O dashboard é dividido em seções numeradas (`SectionNav.tsx`, teclas 1–9) e
-tem um modo apresentação (botão "Apresentar" ou tecla P: tela cheia, fonte
-maior, ←/→ entre seções). Peças:
+O dashboard tem dois modos (`App.tsx`):
 
-- **Nota de segurança** (`RiskScore.tsx`, lógica em `lib/score.ts`): 0–100 e
-  A–F, com "simular correção". O relatório executivo usa o mesmo `gradeOf`.
-- **Grafo** (`AttackGraph.tsx`, `react-force-graph-2d`): domínio → hosts →
-  portas/tecnologias/achados; clique abre `HostDrawer` ou o achado. Os nós são
-  reaproveitados entre polls, então o grafo cresce ao vivo e no modo demonstração.
-- **Globo** (`ServerGlobe.tsx`, `react-globe.gl`, carregado sob demanda): usa
-  `GET /api/scans/{id}/geo` (`app/services/geoip.py`). Só IP público
-  (`is_global`) vai para ipwho.is/ipinfo.io, com cache de 30 dias em
-  `data/geo_cache`; `GEOIP_ENABLED=false` desliga. A origem dos arcos é a
-  localização do próprio servidor de análise. Texturas em `frontend/public/globe/`.
-- **Cadeias de ataque** (`AttackChains.tsx`, backend em
+- **Sala de operações** (`components/ops/OpsRoom.tsx`), enquanto a análise roda
+  ou no modo demonstração: tela única sem rolagem, com radar, etapas
+  (`StageRail`), palco central, nota parcial, terminal e ticker de achados
+  (`FindingTicker`). O palco alterna grafo ⇄ globo (os dois ficam montados; um
+  vira miniatura) sob o **diretor automático** (`ops/useDirector.ts`): endereço
+  ou achado novo → câmera do grafo vai até ele; `web_audit` → globo por no
+  mínimo 7 s; achado alto/crítico confirmado → holofote com alarme; IA →
+  enquadra tudo. Clicar numa visão fixa a câmera até "voltar ao automático".
+  Entrar recolhe a barra lateral. Som opcional (`lib/sound.ts`, Web Audio,
+  desligado por padrão, salvo em localStorage).
+- **Resultado** (`ResultsView.tsx`), em abas (`TabNav.tsx`, teclas 1–7): Resumo
+  (nota com "simular correção", principal cadeia, o que corrigir primeiro,
+  checklist, prints), Mapa, Globo, Cadeias, Achados, Infra e código, Relatório.
+  Ao terminar uma análise (ao vivo ou demonstração até o fim), `GradeReveal`
+  revela a nota em tela cheia. Sair da demonstração no meio não revela.
+
+Modo apresentação (P): tela cheia, fonte maior, ←/→ entre abas. Modo TV:
+repete a demonstração em loop e passeia por Resumo/Mapa/Globo/Cadeias no fim;
+Esc sai. O painel de achado (`FindingDrawer`) e o do host (`HostDrawer`) são
+renderizados uma vez no App e abertos de qualquer lugar.
+
+Peças reaproveitadas:
+
+- **Nota** (`RiskScore.tsx`, `lib/score.ts`): 0–100 e A–F; o relatório
+  executivo usa o mesmo `gradeOf`. `Gauge` é exportado.
+- **Grafo** (`AttackGraph.tsx`, `react-force-graph-2d`, `variant` card/stage,
+  `focus` do diretor): nós reaproveitados entre polls, então cresce ao vivo.
+- **Globo** (`ServerGlobe.tsx`, `react-globe.gl`, carregado sob demanda,
+  `variant` card/stage/mini): usa `GET /api/scans/{id}/geo`
+  (`app/services/geoip.py`). Só IP público (`is_global`) vai para
+  ipwho.is/ipinfo.io, cache de 30 dias em `data/geo_cache`;
+  `GEOIP_ENABLED=false` desliga. A origem dos arcos é a localização do próprio
+  servidor de análise. Texturas em `frontend/public/globe/`.
+- **Cadeias de ataque** (`AttackChains.tsx`, `TopChain.tsx`, backend em
   `ai_triage/attack_chains.py`): `GET /api/scans/{id}/attack-chains` devolve as
   de regra (calculadas na hora, seguem a revisão humana) ou a versão da IA, se já
   gerada; `POST` pede à IA (`generate_attack_chains` nos providers), valida os
   ids e grava em `data/scans/{id}/attack_chains.json`. Sem IA, volta às regras
   com `warning`. É narrativa sobre achados existentes: nada executa teste novo.
-- **Alertas** (`CriticalToasts.tsx`): achado alto/crítico novo durante a análise
-  gera toast e clarão vermelho.
 
 ## Prints dos sites (opcional)
 

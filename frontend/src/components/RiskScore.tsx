@@ -16,9 +16,23 @@ const R = 80;
 const ARC = Math.PI * R; // meia-volta
 
 /** Medidor de 0 a 100 com a letra no meio. */
-function Gauge({ score, color, grade }: { score: number; color: string; grade: string }) {
+export function Gauge({
+  score,
+  color,
+  grade,
+  className = 'max-w-[260px]',
+  letterClass = 'text-6xl',
+  numberClass = 'text-sm',
+}: {
+  score: number;
+  color: string;
+  grade: string;
+  className?: string;
+  letterClass?: string;
+  numberClass?: string;
+}) {
   return (
-    <div className="relative w-full max-w-[260px] mx-auto">
+    <div className={`relative w-full mx-auto ${className}`}>
       <svg viewBox="-100 -95 200 110" className="w-full overflow-visible">
         <defs>
           <filter id="gauge-glow" x="-50%" y="-50%" width="200%" height="200%">
@@ -68,13 +82,13 @@ function Gauge({ score, color, grade }: { score: number; color: string; grade: s
             animate={{ scale: 1, opacity: 1, rotate: 0 }}
             exit={{ scale: 1.8, opacity: 0 }}
             transition={{ type: 'spring', stiffness: 260, damping: 16 }}
-            className="font-display font-700 text-6xl leading-none"
+            className={`font-display font-700 leading-none ${letterClass}`}
             style={{ color, textShadow: `0 0 28px ${color}66` }}
           >
             {grade}
           </motion.span>
         </AnimatePresence>
-        <span className="font-mono text-sm text-subtle mt-1">
+        <span className={`font-mono text-subtle mt-1 ${numberClass}`}>
           <AnimatedNumber value={score} /> / 100
         </span>
       </div>

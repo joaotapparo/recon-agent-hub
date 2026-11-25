@@ -89,11 +89,17 @@ body {
   animation: grid-drift 12s linear infinite;
 }
 
-/* modo apresentação: tudo maior e cada seção ocupa a tela */
-html.presenting { font-size: 17.5px; }
-html.presenting main { scroll-snap-type: y proximity; }
-html.presenting .present-slide { scroll-snap-align: start; min-height: calc(100vh - 140px); }
+/* modo apresentação: tudo maior */
+html.presenting { font-size: 17px; }
+
+/* ticker de achados da sala de operações */
+@keyframes ticker { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+.animate-ticker { animation: ticker 40s linear infinite; }
+
+/* varredura de "scanline" sobre o palco */
+@keyframes scan-sweep { from { transform: translateY(-100%); } to { transform: translateY(100%); } }
+.animate-scan-sweep { animation: scan-sweep 4s linear infinite; }
 
 @media (prefers-reduced-motion: reduce) {
-  .bg-grid { animation: none; }
+  .bg-grid, .animate-ticker, .animate-scan-sweep { animation: none; }
 }

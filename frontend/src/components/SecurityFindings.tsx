@@ -241,6 +241,36 @@ function FindingPanel({
   );
 }
 
+/** Painel lateral de um achado, com a revisão humana. */
+export function FindingDrawer({
+  findings,
+  selectedId,
+  onClose,
+  readOnly,
+  onReviewed,
+}: {
+  findings: Finding[];
+  selectedId: string | null;
+  onClose: () => void;
+  readOnly: boolean;
+  onReviewed?: () => void;
+}) {
+  const selected = findings.find((f) => f.id === selectedId) ?? null;
+  return (
+    <AnimatePresence>
+      {selected && (
+        <FindingPanel
+          key="panel"
+          finding={selected}
+          onClose={onClose}
+          readOnly={readOnly || !onReviewed}
+          onReviewed={() => onReviewed?.()}
+        />
+      )}
+    </AnimatePresence>
+  );
+}
+
 function Select({
   value,
   onChange,
@@ -285,7 +315,6 @@ export default function SecurityFindings({
   const [innerId, setInnerId] = useState<string | null>(null);
   const selectedId = controlledId !== undefined ? controlledId : innerId;
   const setSelectedId = (id: string | null) => (onSelect ? onSelect(id) : setInnerId(id));
-  const selected = findingsList.find((f) => f.id === selectedId) ?? null;
   const [filterSev, setFilterSev] = useState<string>('all');
   const [filterType, setFilterType] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
@@ -426,17 +455,16 @@ export default function SecurityFindings({
         </table>
       </div>
 
-      <AnimatePresence>
-        {selected && (
-          <FindingPanel
-            key="panel"
-            finding={selected}
-            onClose={() => setSelectedId(null)}
-            readOnly={readOnly || !onReviewed}
-            onReviewed={() => onReviewed?.()}
-          />
-        )}
-      </AnimatePresence>
+      {/* controlado de fora: quem controla renderiza o FindingDrawer */}
+      {!onSelect && (
+        <FindingDrawer
+          findings={findingsList}
+          selectedId={selectedId}
+          onClose={() => setSelectedId(null)}
+          readOnly={readOnly}
+          onReviewed={onReviewed}
+        />
+      )}
     </section>
   );
 }

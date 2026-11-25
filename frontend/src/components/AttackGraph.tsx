@@ -51,13 +51,31 @@ interface Props {
   running: boolean;
   onOpenHost: (host: string) => void;
   onOpenFinding: (id: string) => void;
+  /** card: bloco com cabeçalho; stage: ocupa o container inteiro (sala de operações) */
+  variant?: 'card' | 'stage';
+  /** nó para a câmera seguir (diretor automático); id null = enquadrar tudo */
+  focus?: { id: string | null; n: number };
+  /** usuário mexeu no grafo (o diretor para de comandar) */
+  onInteract?: () => void;
 }
 
 function techName(t: string): string {
   return t.split(':')[0].trim();
 }
 
-export default function AttackGraph({ domain, subdomains, findings, openPorts, running, onOpenHost, onOpenFinding }: Props) {
+export default function AttackGraph({
+  domain,
+  subdomains,
+  findings,
+  openPorts,
+  running,
+  onOpenHost,
+  onOpenFinding,
+  variant = 'card',
+  focus,
+  onInteract,
+}: Props) {
+  const stage = variant === 'stage';
   const fgRef = useRef<ForceGraphMethods<N, L> | undefined>(undefined);
   const boxRef = useRef<HTMLDivElement>(null);
   const nodesRef = useRef(new Map<string, N>());
@@ -209,6 +227,25 @@ export default function AttackGraph({ domain, subdomains, findings, openPorts, r
     });
   }, [graph]);
 
+  // diretor: segue o nó pedido (espera o nó nascer e a física assentar um pouco)
+  useEffect(() => {
+    if (!focus) return;
+    const t = setTimeout(() => {
+      const fg = fgRef.current;
+      if (!fg) return;
+      if (focus.id == null) {
+        fg.zoomToFit(900, 60);
+        return;
+      }
+      const node = nodesRef.current.get(focus.id);
+      if (node?.x == null || node.y == null) return;
+      fg.centerAt(node.x * 0.6, node.y * 0.6, 900);
+      fg.zoom(node.kind === 'finding' ? 2.6 : 1.8, 900);
+    }, 450);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focus?.id, focus?.n]);
+
   const neighbors = useMemo(() => {
     if (!hover) return null;
     const set = new Set<string>([hover.id]);
@@ -302,6 +339,7 @@ export default function AttackGraph({ domain, subdomains, findings, openPorts, r
 
   const handleClick = useCallback(
     (node: N) => {
+      onInteract?.();
       const fg = fgRef.current;
       if (fg && node.x != null && node.y != null) {
         fg.centerAt(node.x, node.y, 700);
@@ -313,7 +351,7 @@ export default function AttackGraph({ domain, subdomains, findings, openPorts, r
         setTimeout(() => onOpenHost(node.host!), 450);
       }
     },
-    [onOpenFinding, onOpenHost],
+    [onOpenFinding, onOpenHost, onInteract],
   );
 
   const fit = () => fgRef.current?.zoomToFit(700, 50);
@@ -332,8 +370,12 @@ export default function AttackGraph({ domain, subdomains, findings, openPorts, r
   }, [graph]);
 
   return (
-    <section className={`relative bg-surface border border-border rounded-xl overflow-hidden flex flex-col ${full ? 'bg-bg' : ''}`}>
-      <div className="flex flex-wrap items-center justify-between gap-3 px-5 pt-4 pb-3 border-b border-border">
+    <section
+      className={`relative overflow-hidden flex flex-col ${
+        stage ? 'h-full w-full' : `bg-surface border border-border rounded-xl ${full ? 'bg-bg' : ''}`
+      }`}
+    >
+      <div className={`flex flex-wrap items-center justify-between gap-3 px-5 pt-4 pb-3 border-b border-border ${stage ? 'hidden' : ''}`}>
         <div>
           <h2 className="font-display font-600 text-base text-foreground tracking-wide flex items-center gap-2">
             <Network size={16} /> Grafo da superfície de ataque
@@ -363,7 +405,12 @@ export default function AttackGraph({ domain, subdomains, findings, openPorts, r
         </div>
       </div>
 
-      <div ref={boxRef} className={`relative ${full ? 'flex-1' : 'h-[520px]'} bg-[radial-gradient(ellipse_at_center,#18181b_0%,#09090b_70%)]`}>
+      <div
+        ref={boxRef}
+        className={`relative ${full || stage ? 'flex-1 min-h-0' : 'h-[clamp(520px,calc(100vh-230px),900px)]'} ${
+          stage ? '' : 'bg-[radial-gradient(ellipse_at_center,#18181b_0%,#09090b_70%)]'
+        }`}
+      >
         <ForceGraph2D<GNode, GLink>
           ref={fgRef}
           graphData={graph as never}
@@ -388,6 +435,7 @@ export default function AttackGraph({ domain, subdomains, findings, openPorts, r
           cooldownTicks={180}
           d3VelocityDecay={0.3}
           onNodeHover={(n) => setHover(n)}
+          onNodeDrag={() => onInteract?.()}
           onNodeClick={handleClick}
           onBackgroundClick={() => setHover(null)}
           onEngineStop={() => {
@@ -404,7 +452,7 @@ export default function AttackGraph({ domain, subdomains, findings, openPorts, r
             key={hover.id}
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
-            className="absolute top-3 left-3 max-w-xs bg-surface-2/95 backdrop-blur border border-border-2 rounded-lg px-3 py-2 pointer-events-none"
+            className={`absolute ${stage ? 'top-16' : 'top-3'} left-3 max-w-xs bg-surface-2/95 backdrop-blur border border-border-2 rounded-lg px-3 py-2 pointer-events-none`}
           >
             <p className="text-[10px] font-mono uppercase tracking-widest" style={{ color: hover.color }}>
               {KIND_LABEL[hover.kind]}
@@ -427,14 +475,14 @@ export default function AttackGraph({ domain, subdomains, findings, openPorts, r
           </div>
         )}
 
-        <div className="absolute bottom-3 left-3 flex flex-wrap gap-x-3 gap-y-1 bg-bg/70 backdrop-blur rounded-lg px-3 py-2 pointer-events-none">
+        <div className={`absolute bottom-3 left-3 flex flex-wrap gap-x-3 gap-y-1 bg-bg/70 backdrop-blur rounded-lg px-3 py-2 pointer-events-none ${stage ? 'hidden' : ''}`}>
           <Legend color={RISK_COLOR.critical} label="host em risco" />
           <Legend color={RISK_COLOR.warning} label="atenção" />
           <Legend color={RISK_COLOR.ok} label="ok" />
           <Legend color="#38bdf8" label="tecnologia" diamond />
           <Legend color="#a1a1aa" label="porta" />
         </div>
-        <div className="absolute bottom-3 right-3 text-[10px] font-mono text-muted bg-bg/70 backdrop-blur rounded-lg px-3 py-2 pointer-events-none">
+        <div className={`absolute bottom-3 right-3 text-[10px] font-mono text-muted bg-bg/70 backdrop-blur rounded-lg px-3 py-2 pointer-events-none ${stage ? 'hidden' : ''}`}>
           {counts.host + (graph.nodes.find((n) => n.id === 'domain')?.host ? 1 : 0)} endereços · {counts.port} portas · {counts.tech} tecnologias · {counts.finding} achados
         </div>
       </div>

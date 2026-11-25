@@ -11,6 +11,10 @@ interface Props {
   subdomains: Subdomain[];
   findings: Finding[];
   onOpenHost: (host: string) => void;
+  /** card: bloco com lista; stage: ocupa o container; mini: miniatura sem interação */
+  variant?: 'card' | 'stage' | 'mini';
+  /** host para a câmera voar até (diretor automático) */
+  focusHost?: string | null;
 }
 
 interface Place {
@@ -30,13 +34,15 @@ const RISK_ORDER: HostRisk[] = ['offline', 'ok', 'warning', 'critical'];
 let countriesCache: object[] | null = null;
 
 /** Globo 3D com onde ficam os servidores e de onde a análise partiu. */
-export default function ServerGlobe({ scanId, subdomains, findings, onOpenHost }: Props) {
+export default function ServerGlobe({ scanId, subdomains, findings, onOpenHost, variant = 'card', focusHost }: Props) {
+  const compact = variant !== 'card';
   const globeRef = useRef<GlobeMethods | undefined>(undefined);
   const boxRef = useRef<HTMLDivElement>(null);
   const [geo, setGeo] = useState<ApiGeoResponse | null>(null);
   const [error, setError] = useState(false);
   const [countries, setCountries] = useState<object[]>(countriesCache ?? []);
-  const [width, setWidth] = useState(600);
+  const [size, setSize] = useState({ w: 600, h: 420 });
+  const width = size.w;
   const [rotate, setRotate] = useState(true);
   const [selected, setSelected] = useState<string | null>(null);
 
@@ -67,7 +73,7 @@ export default function ServerGlobe({ scanId, subdomains, findings, onOpenHost }
   useEffect(() => {
     const el = boxRef.current;
     if (!el) return;
-    const ro = new ResizeObserver(([e]) => setWidth(e.contentRect.width));
+    const ro = new ResizeObserver(([e]) => setSize({ w: e.contentRect.width, h: e.contentRect.height }));
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
@@ -115,20 +121,30 @@ export default function ServerGlobe({ scanId, subdomains, findings, onOpenHost }
     // com origem conhecida, enquadra o meio do caminho para o arco aparecer inteiro
     const lat = origin ? (origin.lat + first.lat) / 2 : first.lat - 10;
     const lng = origin ? (origin.lon + first.lng) / 2 : first.lng - 30;
-    globeRef.current?.pointOfView({ lat, lng, altitude: 2.4 }, 2000);
-  }, [places, origin]);
+    globeRef.current?.pointOfView({ lat, lng, altitude: variant === 'mini' ? 1.7 : 2.4 }, 2000);
+  }, [places, origin, variant]);
+
+  // diretor: voa até o servidor do host em foco
+  useEffect(() => {
+    if (!focusHost) return;
+    const p = places.find((pl) => pl.hosts.includes(focusHost)) ?? places[0];
+    if (p) flyTo(p, 1.5);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusHost, places]);
 
   useEffect(() => {
     const c = globeRef.current?.controls() as { autoRotate: boolean; autoRotateSpeed: number; enableZoom: boolean } | undefined;
     if (!c) return;
     c.autoRotate = rotate;
     c.autoRotateSpeed = 0.6;
-    c.enableZoom = true;
-  }, [rotate, width, countries]);
+    c.enableZoom = variant !== 'mini';
+  }, [rotate, width, countries, variant]);
 
   return (
-    <section className="relative bg-surface border border-border rounded-xl overflow-hidden flex flex-col h-full">
-      <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-border">
+    <section
+      className={`relative overflow-hidden flex flex-col h-full ${compact ? 'w-full' : 'bg-surface border border-border rounded-xl'}`}
+    >
+      <div className={`flex items-center justify-between px-5 pt-4 pb-3 border-b border-border ${compact ? 'hidden' : ''}`}>
         <div>
           <h2 className="font-display font-600 text-base text-foreground tracking-wide flex items-center gap-2">
             <Globe2 size={16} /> Onde estão os servidores
@@ -144,18 +160,29 @@ export default function ServerGlobe({ scanId, subdomains, findings, onOpenHost }
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_220px] flex-1 min-h-[420px]">
-        <div ref={boxRef} className="relative min-w-0 overflow-hidden h-[420px] md:h-auto bg-[radial-gradient(circle_at_center,#0c1220_0%,#09090b_65%)]">
+      <div
+        className={`grid flex-1 min-h-0 ${
+          compact ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-[minmax(0,1fr)_240px] min-h-[420px]'
+        }`}
+      >
+        <div
+          ref={boxRef}
+          className={`relative min-w-0 overflow-hidden ${
+            compact ? 'h-full' : 'h-[clamp(420px,calc(100vh-260px),820px)]'
+          } ${variant === 'mini' ? 'pointer-events-none' : ''} ${
+            compact ? '' : 'bg-[radial-gradient(circle_at_center,#0c1220_0%,#09090b_65%)]'
+          }`}
+        >
           <Globe
             ref={globeRef}
             width={width}
-            height={420}
+            height={size.h}
             backgroundColor="rgba(0,0,0,0)"
             globeImageUrl="/globe/earth-night.jpg"
             showAtmosphere
             atmosphereColor="#38bdf8"
             atmosphereAltitude={0.18}
-            hexPolygonsData={countries}
+            hexPolygonsData={variant === 'mini' ? [] : countries}
             hexPolygonResolution={3}
             hexPolygonMargin={0.62}
             hexPolygonUseDots
@@ -218,7 +245,11 @@ export default function ServerGlobe({ scanId, subdomains, findings, onOpenHost }
           )}
         </div>
 
-        <ul className="border-t md:border-t-0 md:border-l border-border p-3 space-y-1.5 overflow-y-auto max-h-[420px]">
+        <ul
+          className={`border-t md:border-t-0 md:border-l border-border p-3 space-y-1.5 overflow-y-auto max-h-[clamp(420px,calc(100vh-260px),820px)] ${
+            compact ? 'hidden' : ''
+          }`}
+        >
           {origin && (
             <li className="text-[10px] font-mono text-sky-300 px-2 py-1.5 rounded bg-sky-400/10 border border-sky-400/20 mb-2">
               Análise partiu de {origin.city ?? '?'}{origin.country ? `, ${origin.country}` : ''}
