@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Globe, { type GlobeMethods } from 'react-globe.gl';
 import { motion } from 'motion/react';
 import { Globe2, MapPin, Pause, Play } from 'lucide-react';
@@ -33,6 +33,32 @@ const RISK_ORDER: HostRisk[] = ['offline', 'ok', 'warning', 'critical'];
 
 let countriesCache: object[] | null = null;
 
+// Acessores fora do componente: a biblioteca refaz a camada inteira quando
+// recebe uma função nova, e isso fazia o globo piscar a cada render.
+const hexColor = () => 'rgba(148,163,184,0.35)';
+const pointColor = (d: object) => RISK_COLOR[(d as Place).risk];
+const pointAltitude = (d: object) => 0.03 + Math.min(0.25, (d as Place).issues * 0.03);
+const ringColor = (d: object) => (t: number) => {
+  const c = RISK_COLOR[(d as Place).risk];
+  return `${c}${Math.round((1 - t) * 255).toString(16).padStart(2, '0')}`;
+};
+const arcColor = (d: object) => ['#38bdf8', (d as { color: string }).color];
+const labelColor = () => '#38bdf8';
+const pointLabel = (d: object) => {
+  const p = d as Place;
+  return `<div style="font-family:'Share Tech Mono',monospace;background:#18181bee;border:1px solid #2e2e33;border-radius:8px;padding:6px 10px;font-size:11px;color:#fafafa">
+    <div style="color:${RISK_COLOR[p.risk]}">${p.city ?? ''}${p.city && p.country ? ', ' : ''}${p.country ?? ''}</div>
+    <div>${p.hosts.slice(0, 4).join('<br/>')}${p.hosts.length > 4 ? `<br/>+${p.hosts.length - 4}` : ''}</div>
+    <div style="color:#a1a1aa">${p.org ?? ''}</div></div>`;
+};
+
+/** Devolve o mesmo valor enquanto a assinatura não muda (evita refazer a camada). */
+function useStable<T>(value: T, signature: string): T {
+  const ref = useRef<{ sig: string; value: T } | null>(null);
+  if (!ref.current || ref.current.sig !== signature) ref.current = { sig: signature, value };
+  return ref.current.value;
+}
+
 /** Globo 3D com onde ficam os servidores e de onde a análise partiu. */
 export default function ServerGlobe({ scanId, subdomains, findings, onOpenHost, variant = 'card', focusHost }: Props) {
   const compact = variant !== 'card';
@@ -46,13 +72,17 @@ export default function ServerGlobe({ scanId, subdomains, findings, onOpenHost, 
   const [rotate, setRotate] = useState(true);
   const [selected, setSelected] = useState<string | null>(null);
 
-  const ipsKey = subdomains.map((s) => s.ip ?? '').join(',');
+  // só busca de novo quando o conjunto de IPs muda (no replay os hosts vão aparecendo)
+  const ipsKey = [...new Set(subdomains.map((s) => s.ip).filter(Boolean))].sort().join(',');
   useEffect(() => {
     let cancelled = false;
     setError(false);
     api
       .getGeo(scanId)
-      .then((g) => !cancelled && setGeo(g))
+      .then((g) => {
+        if (cancelled) return;
+        setGeo((prev) => (prev && JSON.stringify(prev) === JSON.stringify(g) ? prev : g));
+      })
       .catch(() => !cancelled && setError(true));
     return () => {
       cancelled = true;
@@ -73,13 +103,24 @@ export default function ServerGlobe({ scanId, subdomains, findings, onOpenHost, 
   useEffect(() => {
     const el = boxRef.current;
     if (!el) return;
-    const ro = new ResizeObserver(([e]) => setSize({ w: e.contentRect.width, h: e.contentRect.height }));
+    // espera o tamanho assentar: durante a troca palco ⇄ miniatura o container
+    // muda a cada quadro, e redimensionar o WebGL a cada quadro pisca
+    let t: ReturnType<typeof setTimeout> | undefined;
+    const ro = new ResizeObserver(([e]) => {
+      clearTimeout(t);
+      const w = Math.round(e.contentRect.width);
+      const h = Math.round(e.contentRect.height);
+      t = setTimeout(() => setSize((prev) => (prev.w === w && prev.h === h ? prev : { w, h })), 160);
+    });
     ro.observe(el);
-    return () => ro.disconnect();
+    return () => {
+      clearTimeout(t);
+      ro.disconnect();
+    };
   }, []);
 
   // agrupa hosts que caem no mesmo lugar (mesma cidade/IP)
-  const places = useMemo<Place[]>(() => {
+  const computed = useMemo<Place[]>(() => {
     if (!geo) return [];
     const map = new Map<string, Place>();
     for (const p of geo.points) {
@@ -98,8 +139,9 @@ export default function ServerGlobe({ scanId, subdomains, findings, onOpenHost, 
     }
     return [...map.values()].sort((a, b) => RISK_ORDER.indexOf(b.risk) - RISK_ORDER.indexOf(a.risk) || b.hosts.length - a.hosts.length);
   }, [geo, subdomains, findings]);
+  const places = useStable(computed, JSON.stringify(computed.map((p) => [p.key, p.risk, p.issues, p.hosts])));
 
-  const origin = geo?.origin;
+  const origin = useStable(geo?.origin ?? null, JSON.stringify(geo?.origin ?? null));
   const arcs = useMemo(
     () =>
       origin
@@ -107,22 +149,28 @@ export default function ServerGlobe({ scanId, subdomains, findings, onOpenHost, 
         : [],
     [origin, places],
   );
-  const rings = places.filter((p) => p.risk === 'critical' || p.risk === 'warning');
+  const rings = useMemo(() => places.filter((p) => p.risk === 'critical' || p.risk === 'warning'), [places]);
+  const labels = useMemo(() => (origin ? [{ lat: origin.lat, lng: origin.lon, text: 'análise' }] : []), [origin]);
+  const pointRadius = useCallback((d: object) => (selected === (d as Place).key ? 0.9 : 0.55), [selected]);
 
   const flyTo = (p: { lat: number; lng: number }, alt = 1.6) => {
     setRotate(false);
     globeRef.current?.pointOfView({ lat: p.lat, lng: p.lng, altitude: alt }, 1400);
   };
 
-  // enquadra o primeiro servidor quando os dados chegam
+  // enquadra o primeiro servidor uma vez, quando os dados chegam (reenquadrar a
+  // cada atualização fazia a câmera pular)
+  const framed = useRef<number | null>(null);
   useEffect(() => {
     const first = places[0];
-    if (!first) return;
+    if (!first || framed.current === scanId) return;
+    framed.current = scanId;
     // com origem conhecida, enquadra o meio do caminho para o arco aparecer inteiro
     const lat = origin ? (origin.lat + first.lat) / 2 : first.lat - 10;
     const lng = origin ? (origin.lon + first.lng) / 2 : first.lng - 30;
     globeRef.current?.pointOfView({ lat, lng, altitude: variant === 'mini' ? 1.7 : 2.4 }, 2000);
-  }, [places, origin, variant]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [places, origin, scanId]);
 
   // diretor: voa até o servidor do host em foco
   useEffect(() => {
@@ -182,25 +230,19 @@ export default function ServerGlobe({ scanId, subdomains, findings, onOpenHost, 
             showAtmosphere
             atmosphereColor="#38bdf8"
             atmosphereAltitude={0.18}
-            hexPolygonsData={variant === 'mini' ? [] : countries}
+            hexPolygonsData={countries}
             hexPolygonResolution={3}
             hexPolygonMargin={0.62}
             hexPolygonUseDots
-            hexPolygonColor={() => 'rgba(148,163,184,0.35)'}
+            hexPolygonColor={hexColor}
             pointsData={places}
             pointLat="lat"
             pointLng="lng"
-            pointColor={(d) => RISK_COLOR[(d as Place).risk]}
-            pointAltitude={(d) => 0.03 + Math.min(0.25, (d as Place).issues * 0.03)}
-            pointRadius={(d) => (selected === (d as Place).key ? 0.9 : 0.55)}
+            pointColor={pointColor}
+            pointAltitude={pointAltitude}
+            pointRadius={pointRadius}
             pointsMerge={false}
-            pointLabel={(d) => {
-              const p = d as Place;
-              return `<div style="font-family:'Share Tech Mono',monospace;background:#18181bee;border:1px solid #2e2e33;border-radius:8px;padding:6px 10px;font-size:11px;color:#fafafa">
-                <div style="color:${RISK_COLOR[p.risk]}">${p.city ?? ''}${p.city && p.country ? ', ' : ''}${p.country ?? ''}</div>
-                <div>${p.hosts.slice(0, 4).join('<br/>')}${p.hosts.length > 4 ? `<br/>+${p.hosts.length - 4}` : ''}</div>
-                <div style="color:#a1a1aa">${p.org ?? ''}</div></div>`;
-            }}
+            pointLabel={pointLabel}
             onPointClick={(d) => {
               const p = d as Place;
               setSelected(p.key);
@@ -210,27 +252,24 @@ export default function ServerGlobe({ scanId, subdomains, findings, onOpenHost, 
             ringsData={rings}
             ringLat="lat"
             ringLng="lng"
-            ringColor={(d: object) => (t: number) => {
-              const c = RISK_COLOR[(d as Place).risk];
-              return `${c}${Math.round((1 - t) * 255).toString(16).padStart(2, '0')}`;
-            }}
+            ringColor={ringColor}
             ringMaxRadius={5}
             ringPropagationSpeed={2.5}
             ringRepeatPeriod={1100}
             arcsData={arcs}
-            arcColor={(d: object) => ['#38bdf8', (d as { color: string }).color]}
+            arcColor={arcColor}
             arcStroke={0.5}
             arcAltitudeAutoScale={0.45}
             arcDashLength={0.35}
             arcDashGap={0.15}
             arcDashAnimateTime={2200}
-            labelsData={origin ? [{ lat: origin.lat, lng: origin.lon, text: 'análise' }] : []}
+            labelsData={labels}
             labelLat="lat"
             labelLng="lng"
             labelText="text"
             labelSize={1.1}
             labelDotRadius={0.5}
-            labelColor={() => '#38bdf8'}
+            labelColor={labelColor}
             labelResolution={2}
           />
           {!geo && !error && (
