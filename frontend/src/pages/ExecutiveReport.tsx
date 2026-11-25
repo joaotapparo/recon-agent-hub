@@ -4,40 +4,19 @@ import { api, type ApiScanEvent } from '../lib/api';
 import { toDataset } from '../lib/adapters';
 import { businessImpact } from '../lib/businessImpact';
 import { CHECKS, evaluate, type CheckState } from '../components/SecurityChecklist';
-import type { Finding, ScanDataset, SeverityLevel } from '../types';
+import type { ScanDataset, SeverityLevel } from '../types';
+import { GRADES, SEV_RANK, gradeOf, isIssue } from '../lib/score';
 
 // Relatório de uma página para quem decide (não para quem corrige):
 // nota, checklist, principais riscos em linguagem de negócio e próximos passos.
 // Tema claro e CSS de impressão: "Salvar como PDF" do navegador gera o arquivo.
 
-const SEV_RANK: Record<SeverityLevel, number> = { critical: 5, high: 4, medium: 3, low: 2, info: 1, unrated: 0 };
 const SEV_LABEL: Record<SeverityLevel, string> = {
   critical: 'Crítico', high: 'Alto', medium: 'Médio', low: 'Baixo', info: 'Informativo', unrated: 'Em análise',
 };
 const SEV_COLOR: Record<SeverityLevel, string> = {
   critical: 'bg-red-600', high: 'bg-orange-500', medium: 'bg-yellow-500', low: 'bg-slate-400', info: 'bg-slate-300', unrated: 'bg-zinc-300',
 };
-
-const GRADES = {
-  A: { color: '#16a34a', title: 'Excelente', text: 'Nenhum problema relevante encontrado nos testes realizados.' },
-  B: { color: '#65a30d', title: 'Bom, com ajustes', text: 'Há apenas pontos de baixa gravidade ou ainda em análise.' },
-  C: { color: '#ca8a04', title: 'Atenção', text: 'Existem problemas de gravidade média que devem ser planejados.' },
-  D: { color: '#ea580c', title: 'Risco alto', text: 'Há problemas graves que precisam de correção prioritária.' },
-  F: { color: '#dc2626', title: 'Crítico', text: 'Há falhas críticas expostas agora. Corrija imediatamente.' },
-} as const;
-
-function isIssue(f: Finding) {
-  return f.status !== 'false_positive' && f.type !== 'open_port';
-}
-
-function gradeOf(findings: Finding[]): keyof typeof GRADES {
-  const issues = findings.filter(isIssue);
-  const worst = Math.max(0, ...issues.filter((f) => f.status === 'confirmed').map((f) => SEV_RANK[f.severity]));
-  if (worst >= 5) return 'F';
-  if (worst === 4) return 'D';
-  if (worst === 3) return 'C';
-  return issues.length ? 'B' : 'A';
-}
 
 const CHECK_ICON: Record<CheckState, { icon: string; cls: string; label: string }> = {
   pass: { icon: '✓', cls: 'text-green-700 bg-green-50 border-green-200', label: 'Aprovado' },
@@ -116,11 +95,11 @@ export default function ExecutiveReport() {
             <div className="text-center shrink-0">
               <div
                 className="w-24 h-24 rounded-2xl flex items-center justify-center text-6xl font-black text-white"
-                style={{ background: g.color }}
+                style={{ background: g.print }}
               >
                 {grade}
               </div>
-              <p className="text-xs font-semibold mt-2" style={{ color: g.color }}>{g.title}</p>
+              <p className="text-xs font-semibold mt-2" style={{ color: g.print }}>{g.title}</p>
             </div>
           </header>
 

@@ -335,6 +335,9 @@ export function toDataset(domain: ApiDomain, scan: ApiScanJob, apiFindings: ApiF
     ip: s.ip_addresses?.[0],
     ports: (s.open_ports ?? []).map((p) => p.port),
     waf: s.waf,
+    tech: s.tech_stack ?? [],
+    httpStatus: s.http_status ?? undefined,
+    title: s.http_title ?? undefined,
   }));
 
   const openPorts: OpenPort[] = scan.subdomains.flatMap((s) =>

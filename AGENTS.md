@@ -366,6 +366,31 @@ acento porque aparecem para leigos no painel; listas longas são cortadas
 `web_audit` (anteriores a ela) mostram esses testes como "Não testado", e
 não como aprovados.
 
+## Painel interativo (apresentação)
+
+O dashboard é dividido em seções numeradas (`SectionNav.tsx`, teclas 1–9) e
+tem um modo apresentação (botão "Apresentar" ou tecla P: tela cheia, fonte
+maior, ←/→ entre seções). Peças:
+
+- **Nota de segurança** (`RiskScore.tsx`, lógica em `lib/score.ts`): 0–100 e
+  A–F, com "simular correção". O relatório executivo usa o mesmo `gradeOf`.
+- **Grafo** (`AttackGraph.tsx`, `react-force-graph-2d`): domínio → hosts →
+  portas/tecnologias/achados; clique abre `HostDrawer` ou o achado. Os nós são
+  reaproveitados entre polls, então o grafo cresce ao vivo e no modo demonstração.
+- **Globo** (`ServerGlobe.tsx`, `react-globe.gl`, carregado sob demanda): usa
+  `GET /api/scans/{id}/geo` (`app/services/geoip.py`). Só IP público
+  (`is_global`) vai para ipwho.is/ipinfo.io, com cache de 30 dias em
+  `data/geo_cache`; `GEOIP_ENABLED=false` desliga. A origem dos arcos é a
+  localização do próprio servidor de análise. Texturas em `frontend/public/globe/`.
+- **Cadeias de ataque** (`AttackChains.tsx`, backend em
+  `ai_triage/attack_chains.py`): `GET /api/scans/{id}/attack-chains` devolve as
+  de regra (calculadas na hora, seguem a revisão humana) ou a versão da IA, se já
+  gerada; `POST` pede à IA (`generate_attack_chains` nos providers), valida os
+  ids e grava em `data/scans/{id}/attack_chains.json`. Sem IA, volta às regras
+  com `warning`. É narrativa sobre achados existentes: nada executa teste novo.
+- **Alertas** (`CriticalToasts.tsx`): achado alto/crítico novo durante a análise
+  gera toast e clarão vermelho.
+
 ## Prints dos sites (opcional)
 
 `app/services/screenshots.py` fotografa a página inicial de até 20 sites

@@ -22,3 +22,7 @@ class AITriageProvider(Protocol):
     async def generate_report(
         self, domain: Domain, findings: list[Finding], *, language: str = "pt-BR"
     ) -> str: ...
+
+    async def generate_attack_chains(
+        self, domain: Domain, findings: list[Finding]
+    ) -> list[dict]: ...

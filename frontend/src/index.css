@@ -73,3 +73,27 @@ body {
   @page { margin: 12mm; }
   html, body, #root { background: #ffffff !important; height: auto; }
 }
+
+/* ── Painel interativo ───────────────────────────────────────────────────── */
+
+.no-scrollbar { scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+
+/* grade de fundo que desliza devagar */
+@keyframes grid-drift { to { background-position: 48px 48px, 48px 48px; } }
+.bg-grid {
+  background-image:
+    linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px);
+  background-size: 48px 48px;
+  animation: grid-drift 12s linear infinite;
+}
+
+/* modo apresentação: tudo maior e cada seção ocupa a tela */
+html.presenting { font-size: 17.5px; }
+html.presenting main { scroll-snap-type: y proximity; }
+html.presenting .present-slide { scroll-snap-align: start; min-height: calc(100vh - 140px); }
+
+@media (prefers-reduced-motion: reduce) {
+  .bg-grid { animation: none; }
+}

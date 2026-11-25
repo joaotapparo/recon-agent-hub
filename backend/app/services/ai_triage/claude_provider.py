@@ -23,8 +23,13 @@ from app.services.ai_triage.gemini_provider import (
 from app.services.ai_triage.gemini_provider import (
     _GeminiTriageBatch as _TriageBatch,
 )
-from app.services.ai_triage.gemini_provider import _normalize, filter_results
+from app.services.ai_triage.gemini_provider import (
+    _AttackChainsResponse,
+    _normalize,
+    filter_results,
+)
 from app.services.ai_triage.prompt_templates import (
+    build_attack_chain_prompt,
     build_report_prompt,
     build_triage_prompt,
 )
@@ -74,6 +79,16 @@ class ClaudeTriageProvider:
             raise RuntimeError("Claude devolveu uma sintese vazia")
         self.last_summary = summary
         return render_report(domain, findings, summary=summary, language=language)
+
+    async def generate_attack_chains(
+        self, domain: Domain, findings: list[Finding]
+    ) -> list[dict]:
+        if not domain.authorized:
+            raise ValueError("o dominio precisa estar autorizado")
+        parsed = await self._parse(
+            build_attack_chain_prompt(domain, findings), _AttackChainsResponse
+        )
+        return [chain.model_dump(mode="json") for chain in parsed.chains]
 
     async def _parse(self, prompt: str, output_format: type[_T]) -> _T:
         response = await self._client.beta.messages.parse(

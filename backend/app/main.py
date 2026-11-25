@@ -11,7 +11,7 @@ from app import (
 from app.config import settings
 from app.core.logging import configure_logging
 from app.frontend import mount_frontend
-from app.routers import domains, findings, reports, review, scans
+from app.routers import domains, findings, insights, reports, review, scans
 from app.workers.job_runner import recover_orphaned_jobs, start_worker
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
@@ -43,6 +43,7 @@ app.include_router(scans.router)
 app.include_router(findings.router)
 app.include_router(reports.router)
 app.include_router(review.router)
+app.include_router(insights.router)
 
 
 @app.get("/api/health")

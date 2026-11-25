@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
 import { SeverityBadge, StatusBadge, getSeverity, statusMap, typeLabel } from '../utils';
 import { api, type Severity } from '../lib/api';
 import type { Finding } from '../types';
@@ -142,8 +143,20 @@ function FindingPanel({
 }) {
   return (
     <>
-      <div className="fixed inset-0 bg-black/50 z-30" onClick={onClose} />
-      <div className="fixed top-0 right-0 h-full w-full max-w-md bg-surface-2 border-l border-border-2 z-40 overflow-y-auto">
+      <motion.div
+        className="fixed inset-0 bg-black/50 backdrop-blur-[2px] z-30"
+        onClick={onClose}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+      />
+      <motion.div
+        className="fixed top-0 right-0 h-full w-full max-w-md bg-surface-2 border-l border-border-2 z-40 overflow-y-auto shadow-2xl"
+        initial={{ x: '100%' }}
+        animate={{ x: 0 }}
+        exit={{ x: '100%' }}
+        transition={{ type: 'spring', stiffness: 260, damping: 30 }}
+      >
         <div className="sticky top-0 bg-surface-2 border-b border-border px-5 py-4 flex items-start justify-between gap-3">
           <div>
             <p className="text-[10px] font-mono text-muted tracking-widest uppercase mb-1">
@@ -223,7 +236,7 @@ function FindingPanel({
             </div>
           )}
         </div>
-      </div>
+      </motion.div>
     </>
   );
 }
@@ -256,11 +269,22 @@ interface SecurityFindingsProps {
   onReviewed?: () => void;
   /** modo demonstração: mostra a revisão, mas não deixa mudar */
   readOnly?: boolean;
+  /** seleção controlada de fora (grafo, cadeias, alertas abrem o mesmo painel) */
+  selectedId?: string | null;
+  onSelect?: (id: string | null) => void;
 }
 
-export default function SecurityFindings({ findingsList, onReviewed, readOnly = false }: SecurityFindingsProps) {
+export default function SecurityFindings({
+  findingsList,
+  onReviewed,
+  readOnly = false,
+  selectedId: controlledId,
+  onSelect,
+}: SecurityFindingsProps) {
   // guarda o id, não o objeto: depois de uma revisão a lista é recarregada
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [innerId, setInnerId] = useState<string | null>(null);
+  const selectedId = controlledId !== undefined ? controlledId : innerId;
+  const setSelectedId = (id: string | null) => (onSelect ? onSelect(id) : setInnerId(id));
   const selected = findingsList.find((f) => f.id === selectedId) ?? null;
   const [filterSev, setFilterSev] = useState<string>('all');
   const [filterType, setFilterType] = useState<string>('all');
@@ -402,14 +426,17 @@ export default function SecurityFindings({ findingsList, onReviewed, readOnly = 
         </table>
       </div>
 
-      {selected && (
-        <FindingPanel
-          finding={selected}
-          onClose={() => setSelectedId(null)}
-          readOnly={readOnly || !onReviewed}
-          onReviewed={() => onReviewed?.()}
-        />
-      )}
+      <AnimatePresence>
+        {selected && (
+          <FindingPanel
+            key="panel"
+            finding={selected}
+            onClose={() => setSelectedId(null)}
+            readOnly={readOnly || !onReviewed}
+            onReviewed={() => onReviewed?.()}
+          />
+        )}
+      </AnimatePresence>
     </section>
   );
 }

@@ -67,6 +67,9 @@ class Settings(BaseSettings):
     nvd_api_key: str = ""
     hibp_api_key: str = ""
 
+    # Globo do painel: localiza os IPs publicos dos alvos em ipwho.is/ipinfo.io
+    geoip_enabled: bool = True
+
     # logging estruturado (issue #28): "json" ou "text"
     log_level: str = "INFO"
     log_format: str = "json"

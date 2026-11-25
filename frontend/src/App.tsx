@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import SummaryCards from './components/SummaryCards';
@@ -9,7 +9,13 @@ import CodeFindings from './components/CodeFindings';
 import FinalReport from './components/FinalReport';
 import NewScanModal from './components/NewScanModal';
 import LiveOperations from './components/LiveOperations';
-import AttackSurfaceMap from './components/AttackSurfaceMap';
+import AttackGraph from './components/AttackGraph';
+import AttackChains from './components/AttackChains';
+import RiskScore from './components/RiskScore';
+import HostDrawer from './components/HostDrawer';
+import CriticalToasts from './components/CriticalToasts';
+import Section from './components/Section';
+import SectionNav, { SECTIONS, useActiveSection, usePresentation } from './components/SectionNav';
 import SecurityChecklist from './components/SecurityChecklist';
 import DomainVerification from './components/DomainVerification';
 import { useScanEvents } from './hooks/useScanEvents';
@@ -29,6 +35,9 @@ import {
 import { toDataset, toHistoryItem } from './lib/adapters';
 import type { ScanDataset } from './types';
 
+// three.js é pesado: o globo só carrega quando a análise abre
+const ServerGlobe = lazy(() => import('./components/ServerGlobe'));
+
 const POLL_RUNNING_MS = 3000;
 const POLL_IDLE_MS = 15000;
 
@@ -46,6 +55,25 @@ export default function App() {
   const [rescanning, setRescanning] = useState(false);
   // incrementado depois de uma revisão humana, pra recarregar o scan aberto
   const [reloadTick, setReloadTick] = useState(0);
+  // painéis laterais: endereço (grafo/globo) e achado (lista, cadeias, nota, alertas)
+  const [openHost, setOpenHost] = useState<string | null>(null);
+  const [focusFinding, setFocusFinding] = useState<string | null>(null);
+  const mainRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      setOpenHost(null);
+      setFocusFinding(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  const openFinding = useCallback((id: string) => {
+    setOpenHost(null);
+    setFocusFinding(id);
+  }, []);
 
   const loadDomains = useCallback(async () => {
     try {
@@ -195,6 +223,15 @@ export default function App() {
   // no replay, os prints só aparecem depois da etapa em que foram tirados
   const replayOrder: ScanStatus[] = ['scanning_js', 'triaging', 'completed'];
   const shownShots = !replay.active || replayOrder.includes(shownStatus) ? shots : [];
+  const screenshotOf = (h: string) => (shown && shownShots.includes(h) ? api.screenshotUrl(shown.scanId, h) : undefined);
+
+  const sections = useMemo(
+    () => SECTIONS.filter((s) => (s.id === 'sites' ? shownShots.length > 0 : true)),
+    [shownShots.length],
+  );
+  const activeSection = useActiveSection(mainRef, sections.map((s) => s.id), [Boolean(shown), shown?.scanId]);
+  const closeSidebar = useCallback(() => setSidebarOpen(false), []);
+  const presentation = usePresentation(sections, activeSection, closeSidebar);
 
 
   return (
@@ -222,8 +259,8 @@ export default function App() {
           status={shown?.status}
         />
 
-        <main className="flex-1 overflow-y-auto">
-          <div className="max-w-screen-xl mx-auto px-5 py-5 space-y-4">
+        <main ref={mainRef} className="flex-1 overflow-y-auto relative bg-grid">
+          <div className="max-w-screen-2xl mx-auto px-5 pb-10 pt-5 space-y-5">
             {domainsError && <Banner tone="error">{domainsError}</Banner>}
             {datasetError && <Banner tone="error">{datasetError}</Banner>}
             {showDataset?.errorMessage && (
@@ -262,6 +299,12 @@ export default function App() {
 
             {showDataset && shown && (
               <>
+                <SectionNav
+                  sections={sections}
+                  active={activeSection}
+                  presenting={presentation.presenting}
+                  onTogglePresent={presentation.toggle}
+                />
                 {viewScanId != null && (
                   <div className="flex items-center justify-between gap-3 rounded-lg border border-med/30 bg-med/10 px-4 py-2.5 text-xs font-mono text-med">
                     <span>Você está vendo uma análise anterior ({showDataset.date}).</span>
@@ -270,74 +313,128 @@ export default function App() {
                     </button>
                   </div>
                 )}
-                <SummaryCards stats={shown.stats} />
-                <AnalysisProgress stages={shown.stages} />
-                {showDataset.status === 'completed' && replay.available && (
-                  <ReplayBar
-                    active={replay.active}
-                    finished={replay.finished}
-                    paused={replay.paused}
-                    speed={replay.speed}
-                    progress={replay.progress}
-                    onStart={replay.start}
-                    onStop={replay.stop}
-                    onTogglePause={replay.togglePause}
-                    onSpeed={replay.setSpeed}
-                  />
-                )}
-                <LiveOperations
-                  scanId={shown.scanId}
-                  status={shownStatus}
-                  events={shownEvents}
-                  replay={replay.active}
-                />
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                  <AttackSurfaceMap
+
+                <Section id="visao-geral">
+                  <div className="grid grid-cols-1 xl:grid-cols-[minmax(320px,380px)_minmax(0,1fr)] gap-4">
+                    <RiskScore findings={shown.findings} running={shown.status === 'running'} onOpenFinding={openFinding} />
+                    <div className="flex flex-col gap-4 min-w-0">
+                      <SummaryCards stats={shown.stats} />
+                      <AnalysisProgress stages={shown.stages} />
+                      {showDataset.status === 'completed' && replay.available && (
+                        <ReplayBar
+                          active={replay.active}
+                          finished={replay.finished}
+                          paused={replay.paused}
+                          speed={replay.speed}
+                          progress={replay.progress}
+                          onStart={replay.start}
+                          onStop={replay.stop}
+                          onTogglePause={replay.togglePause}
+                          onSpeed={replay.setSpeed}
+                        />
+                      )}
+                    </div>
+                  </div>
+                </Section>
+
+                <Section id="ao-vivo">
+                  <LiveOperations scanId={shown.scanId} status={shownStatus} events={shownEvents} replay={replay.active} />
+                </Section>
+
+                <Section id="grafo">
+                  <AttackGraph
                     domain={shown.domain}
                     subdomains={shown.subdomains}
                     findings={shown.findings}
+                    openPorts={shown.openPorts}
                     running={shown.status === 'running'}
-                    screenshotOf={(h) => (shownShots.includes(h) ? api.screenshotUrl(shown.scanId, h) : undefined)}
+                    onOpenHost={setOpenHost}
+                    onOpenFinding={openFinding}
                   />
-                  <SecurityChecklist
-                    stages={shown.stages}
+                </Section>
+
+                <Section id="globo">
+                  <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(320px,400px)] gap-4">
+                    <Suspense
+                      fallback={
+                        <div className="bg-surface border border-border rounded-xl min-h-[480px] flex items-center justify-center text-xs font-mono text-muted animate-pulse">
+                          Carregando globo…
+                        </div>
+                      }
+                    >
+                      <ServerGlobe scanId={shown.scanId} subdomains={shown.subdomains} findings={shown.findings} onOpenHost={setOpenHost} />
+                    </Suspense>
+                    <SecurityChecklist stages={shown.stages} findings={shown.findings} events={shownEvents} subdomains={shown.subdomains} />
+                  </div>
+                </Section>
+
+                <Section id="cadeias">
+                  <AttackChains
+                    scanId={shown.scanId}
+                    completed={showDataset.status === 'completed' && !replay.active}
                     findings={shown.findings}
-                    events={shownEvents}
-                    subdomains={shown.subdomains}
+                    readOnly={replay.active}
+                    onOpenFinding={openFinding}
                   />
-                </div>
-                <SiteGallery
-                  scanId={shown.scanId}
-                  hosts={shownShots}
+                </Section>
+
+                {shownShots.length > 0 && (
+                  <Section id="sites">
+                    <SiteGallery scanId={shown.scanId} hosts={shownShots} subdomains={shown.subdomains} findings={shown.findings} />
+                  </Section>
+                )}
+
+                <Section id="achados">
+                  <SecurityFindings
+                    findingsList={shown.findings}
+                    readOnly={replay.active}
+                    onReviewed={() => setReloadTick((t) => t + 1)}
+                    selectedId={focusFinding}
+                    onSelect={setFocusFinding}
+                  />
+                </Section>
+
+                <Section id="infra">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    <Infrastructure
+                      subdomainsList={shown.subdomains}
+                      openPortsList={shown.openPorts}
+                      takeoverRisksList={shown.takeoverRisks}
+                    />
+                    <CodeFindings
+                      endpointsList={shown.endpoints}
+                      secretsList={shown.secrets}
+                      sensitiveFilesList={shown.sensitiveFiles}
+                    />
+                  </div>
+                </Section>
+
+                <Section id="relatorio" className="space-y-4">
+                  {history.length > 1 && (
+                    <ScanHistory
+                      history={history}
+                      currentScanId={showDataset.scanId}
+                      currentFindings={showDataset.findings}
+                      onSelect={handleViewScan}
+                    />
+                  )}
+                  <FinalReport dataset={showDataset} />
+                </Section>
+
+                <HostDrawer
+                  host={openHost}
                   subdomains={shown.subdomains}
                   findings={shown.findings}
+                  openPorts={shown.openPorts}
+                  screenshotOf={screenshotOf}
+                  onClose={() => setOpenHost(null)}
+                  onOpenFinding={openFinding}
                 />
-                <SecurityFindings
-                  findingsList={shown.findings}
-                  readOnly={replay.active}
-                  onReviewed={() => setReloadTick((t) => t + 1)}
+                <CriticalToasts
+                  scanKey={`${shown.scanId}-${replay.active}`}
+                  findings={shown.findings}
+                  onOpenFinding={openFinding}
                 />
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                  <Infrastructure
-                    subdomainsList={shown.subdomains}
-                    openPortsList={shown.openPorts}
-                    takeoverRisksList={shown.takeoverRisks}
-                  />
-                  <CodeFindings
-                    endpointsList={shown.endpoints}
-                    secretsList={shown.secrets}
-                    sensitiveFilesList={shown.sensitiveFiles}
-                  />
-                </div>
-                {history.length > 1 && (
-                  <ScanHistory
-                    history={history}
-                    currentScanId={showDataset.scanId}
-                    currentFindings={showDataset.findings}
-                    onSelect={handleViewScan}
-                  />
-                )}
-                <FinalReport dataset={showDataset} />
               </>
             )}
           </div>
@@ -350,6 +447,7 @@ export default function App() {
         onStartScan={handleStartScan}
         onVerify={handleVerify}
       />
+      {presentation.hud}
     </div>
   );
 }
