@@ -73,3 +73,33 @@ body {
   @page { margin: 12mm; }
   html, body, #root { background: #ffffff !important; height: auto; }
 }
+
+/* ── Painel interativo ───────────────────────────────────────────────────── */
+
+.no-scrollbar { scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+
+/* grade de fundo que desliza devagar */
+@keyframes grid-drift { to { background-position: 48px 48px, 48px 48px; } }
+.bg-grid {
+  background-image:
+    linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px);
+  background-size: 48px 48px;
+  animation: grid-drift 12s linear infinite;
+}
+
+/* modo apresentação: tudo maior */
+html.presenting { font-size: 17px; }
+
+/* ticker de achados da sala de operações */
+@keyframes ticker { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+.animate-ticker { animation: ticker 40s linear infinite; }
+
+/* varredura de "scanline" sobre o palco */
+@keyframes scan-sweep { from { transform: translateY(-100%); } to { transform: translateY(100%); } }
+.animate-scan-sweep { animation: scan-sweep 4s linear infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .bg-grid, .animate-ticker, .animate-scan-sweep { animation: none; }
+}

@@ -11,6 +11,7 @@ from app.config import settings
 from app.models import AIVerdict, Domain, Finding, Severity
 from app.services.ai_triage.base import TriageResult
 from app.services.ai_triage.prompt_templates import (
+    build_attack_chain_prompt,
     build_report_prompt,
     build_triage_prompt,
 )
@@ -39,6 +40,24 @@ class _GeminiTriageBatch(BaseModel):
 
 class _GeminiReportResponse(BaseModel):
     summary: str = Field(min_length=1)
+
+
+class _ChainStepResponse(BaseModel):
+    title: str
+    description: str
+    kind: str
+    finding_ids: list[int]
+
+
+class _ChainResponse(BaseModel):
+    title: str
+    impact: str
+    severity: Severity
+    steps: list[_ChainStepResponse]
+
+
+class _AttackChainsResponse(BaseModel):
+    chains: list[_ChainResponse]
 
 
 def _normalize(parsed: _GeminiTriageResponse) -> TriageResult:
@@ -127,6 +146,20 @@ class GeminiTriageProvider:
         # guardado pra remontar o relatorio depois de uma revisao humana
         self.last_summary = summary
         return render_report(domain, findings, summary=summary, language=language)
+
+    async def generate_attack_chains(
+        self, domain: Domain, findings: list[Finding]
+    ) -> list[dict]:
+        if not domain.authorized:
+            raise ValueError("o dominio precisa estar autorizado")
+        response = await self._generate_content(
+            build_attack_chain_prompt(domain, findings),
+            response_schema=_AttackChainsResponse,
+        )
+        if response.text is None:
+            raise RuntimeError("Gemini devolveu resposta vazia nas cadeias de ataque")
+        parsed = _AttackChainsResponse.model_validate_json(response.text)
+        return [chain.model_dump(mode="json") for chain in parsed.chains]
 
     async def _generate_content(
         self, prompt: str, *, response_schema: type[BaseModel] = _GeminiTriageBatch

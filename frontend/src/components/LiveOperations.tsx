@@ -4,14 +4,14 @@ import { STAGES, STATUS_EXPLAINER, parseApiDate } from '../lib/adapters';
 
 // ── estilo por tipo de evento ─────────────────────────────────────────────
 
-const KIND: Record<EventKind, { color: string; text: string; icon: string; label: string }> = {
+export const KIND: Record<EventKind, { color: string; text: string; icon: string; label: string }> = {
   info: { color: '#a1a1aa', text: 'text-subtle', icon: '›', label: 'info' },
   found: { color: '#22c55e', text: 'text-ok', icon: '+', label: 'achou' },
   warn: { color: '#facc15', text: 'text-med', icon: '!', label: 'atenção' },
   alert: { color: '#f87171', text: 'text-crit', icon: '✕', label: 'alerta' },
 };
 
-const STAGE_TAG: Record<string, string> = {
+export const STAGE_TAG: Record<string, string> = {
   enumerating: 'RECON',
   probing: 'PROBE',
   port_scanning: 'PORTS',
@@ -31,7 +31,7 @@ function hash(n: number): number {
 
 // ── radar ─────────────────────────────────────────────────────────────────
 
-function Radar({ events, running }: { events: ApiScanEvent[]; running: boolean }) {
+export function Radar({ events, running, className = 'w-full max-w-[240px] aspect-square' }: { events: ApiScanEvent[]; running: boolean; className?: string }) {
   const blips = useMemo(
     () => events.filter((e) => e.kind !== 'info').slice(-28),
     [events],
@@ -40,7 +40,7 @@ function Radar({ events, running }: { events: ApiScanEvent[]; running: boolean }
   const reducedMotion = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
   return (
-    <svg viewBox="-110 -110 220 220" className="w-full max-w-[240px] aspect-square" role="img" aria-label="Radar da análise">
+    <svg viewBox="-110 -110 220 220" className={className} role="img" aria-label="Radar da análise">
       <defs>
         <radialGradient id="radar-bg">
           <stop offset="0%" stopColor="#22c55e" stopOpacity="0.10" />
@@ -111,7 +111,21 @@ function Typewriter({ text }: { text: string }) {
   return <>{text.slice(0, n)}</>;
 }
 
-function Terminal({ events, running, scanId, replay }: { events: ApiScanEvent[]; running: boolean; scanId: number; replay: boolean }) {
+export function Terminal({
+  events,
+  running,
+  scanId,
+  replay,
+  bodyClass = 'h-72',
+  className = '',
+}: {
+  events: ApiScanEvent[];
+  running: boolean;
+  scanId: number;
+  replay: boolean;
+  bodyClass?: string;
+  className?: string;
+}) {
   const box = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
   const firstBatch = useRef<{ scanId: number; id: number } | null>(null);
@@ -144,7 +158,7 @@ function Terminal({ events, running, scanId, replay }: { events: ApiScanEvent[];
   let burst = 0;
 
   return (
-    <div className="rounded-lg border border-border-2 bg-[#050506] overflow-hidden flex flex-col min-h-0">
+    <div className={`rounded-lg border border-border-2 bg-[#050506] overflow-hidden flex flex-col min-h-0 ${className}`}>
       <div className="flex items-center gap-1.5 px-3 py-2 border-b border-border bg-surface-2">
         <span className="w-2.5 h-2.5 rounded-full bg-crit/70" />
         <span className="w-2.5 h-2.5 rounded-full bg-med/70" />
@@ -156,7 +170,7 @@ function Terminal({ events, running, scanId, replay }: { events: ApiScanEvent[];
           </span>
         )}
       </div>
-      <div ref={box} onScroll={onScroll} className="h-72 overflow-y-auto px-3 py-2 font-mono text-[11.5px] leading-relaxed">
+      <div ref={box} onScroll={onScroll} className={`${bodyClass} overflow-y-auto px-3 py-2 font-mono text-[11.5px] leading-relaxed`}>
         {events.length === 0 && (
           <p className="text-muted">
             {running ? 'Aguardando os primeiros resultados' : 'Sem registro de atividade para esta análise.'}
@@ -193,7 +207,7 @@ function Terminal({ events, running, scanId, replay }: { events: ApiScanEvent[];
 
 // ── painel ────────────────────────────────────────────────────────────────
 
-function useElapsed(events: ApiScanEvent[], running: boolean, replay: boolean): string | null {
+export function useElapsed(events: ApiScanEvent[], running: boolean, replay: boolean): string | null {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     if (!running) return;

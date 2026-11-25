@@ -51,6 +51,9 @@ class FallbackTriageProvider:
         markdown = await self._call("generate_report", domain, findings, language=language)
         return markdown
 
+    async def generate_attack_chains(self, domain: Domain, findings: list[Finding]) -> list[dict]:
+        return await self._call("generate_attack_chains", domain, findings)
+
     async def _call(self, method: str, *args, **kwargs):
         last_error: Exception | None = None
         while self._providers:

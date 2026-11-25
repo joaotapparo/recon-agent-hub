@@ -1,22 +1,18 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AnimatePresence } from 'motion/react';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
-import SummaryCards from './components/SummaryCards';
-import AnalysisProgress from './components/AnalysisProgress';
-import SecurityFindings from './components/SecurityFindings';
-import Infrastructure from './components/Infrastructure';
-import CodeFindings from './components/CodeFindings';
-import FinalReport from './components/FinalReport';
 import NewScanModal from './components/NewScanModal';
-import LiveOperations from './components/LiveOperations';
-import AttackSurfaceMap from './components/AttackSurfaceMap';
-import SecurityChecklist from './components/SecurityChecklist';
+import HostDrawer from './components/HostDrawer';
 import DomainVerification from './components/DomainVerification';
+import { FindingDrawer } from './components/SecurityFindings';
+import ResultsView from './components/ResultsView';
+import OpsRoom from './components/ops/OpsRoom';
+import GradeReveal from './components/GradeReveal';
+import { usePresentation, type TabId } from './components/TabNav';
 import { useScanEvents } from './hooks/useScanEvents';
-import ScanHistory from './components/ScanHistory';
-import ReplayBar from './components/ReplayBar';
-import SiteGallery from './components/SiteGallery';
 import { useReplay, type ReplaySource } from './hooks/useReplay';
+import { gradeOf, scoreOf } from './lib/score';
 import {
   api,
   isRunning,
@@ -46,6 +42,24 @@ export default function App() {
   const [rescanning, setRescanning] = useState(false);
   // incrementado depois de uma revisão humana, pra recarregar o scan aberto
   const [reloadTick, setReloadTick] = useState(0);
+  // painéis laterais: endereço (grafo/globo) e achado (lista, cadeias, nota, alertas)
+  const [openHost, setOpenHost] = useState<string | null>(null);
+  const [focusFinding, setFocusFinding] = useState<string | null>(null);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      setOpenHost(null);
+      setFocusFinding(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  const openFinding = useCallback((id: string) => {
+    setOpenHost(null);
+    setFocusFinding(id);
+  }, []);
 
   const loadDomains = useCallback(async () => {
     try {
@@ -195,7 +209,75 @@ export default function App() {
   // no replay, os prints só aparecem depois da etapa em que foram tirados
   const replayOrder: ScanStatus[] = ['scanning_js', 'triaging', 'completed'];
   const shownShots = !replay.active || replayOrder.includes(shownStatus) ? shots : [];
+  const screenshotOf = (h: string) => (shown && shownShots.includes(h) ? api.screenshotUrl(shown.scanId, h) : undefined);
 
+  const [tab, setTab] = useState<TabId>('resumo');
+  const closeSidebar = useCallback(() => setSidebarOpen(false), []);
+  const presentation = usePresentation(tab, setTab, closeSidebar);
+
+  // sala de operações enquanto a análise roda (ao vivo ou demonstração)
+  const isOps = Boolean(showDataset && shown && shown.status === 'running');
+
+  // entrar na sala recolhe a barra lateral; sair devolve como estava
+  const sidebarBefore = useRef<boolean | null>(null);
+  useEffect(() => {
+    if (isOps && sidebarBefore.current === null) {
+      sidebarBefore.current = sidebarOpen;
+      setSidebarOpen(false);
+    } else if (!isOps && sidebarBefore.current !== null) {
+      setSidebarOpen(sidebarBefore.current && !presentation.presenting);
+      sidebarBefore.current = null;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOps]);
+
+  // fim da análise (ao vivo ou demonstração até o fim): revela a nota.
+  // Sair da demonstração no meio não conta.
+  const [reveal, setReveal] = useState(false);
+  const prevOps = useRef<{ scanId: number; ops: boolean; replay: boolean } | null>(null);
+  useEffect(() => {
+    if (!shown) return;
+    const prev = prevOps.current;
+    if (prev && prev.scanId === shown.scanId && prev.ops && !isOps && prev.replay === replay.active && shown.status === 'completed') {
+      setReveal(true);
+      setTab('resumo');
+    }
+    prevOps.current = { scanId: shown.scanId, ops: isOps, replay: replay.active };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOps, shown?.scanId, shown?.status, replay.active]);
+  const endReveal = useCallback(() => setReveal(false), []);
+
+  // modo TV: repete a demonstração em loop, passeando pelas abas no fim
+  const [tv, setTv] = useState(false);
+  const toggleTv = () => {
+    if (tv) {
+      setTv(false);
+      replay.stop();
+      return;
+    }
+    setTv(true);
+    if (!presentation.presenting) presentation.toggle();
+    replay.start();
+  };
+  useEffect(() => {
+    if (!presentation.presenting) setTv(false);
+  }, [presentation.presenting]);
+  useEffect(() => {
+    if (!tv || !replay.finished || reveal) return;
+    const steps: [TabId, number][] = [
+      ['resumo', 0],
+      ['mapa', 9000],
+      ['globo', 18000],
+      ['cadeias', 27000],
+    ];
+    const timers = steps.map(([t, ms]) => setTimeout(() => setTab(t), ms));
+    timers.push(setTimeout(() => replay.start(), 36000));
+    return () => timers.forEach(clearTimeout);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tv, replay.finished, reveal]);
+
+  // trocar de domínio/análise volta para o resumo
+  useEffect(() => setTab('resumo'), [selectedId, viewScanId]);
 
   return (
     <div className="flex h-screen w-full bg-bg text-foreground overflow-hidden">
@@ -222,127 +304,131 @@ export default function App() {
           status={shown?.status}
         />
 
-        <main className="flex-1 overflow-y-auto">
-          <div className="max-w-screen-xl mx-auto px-5 py-5 space-y-4">
-            {domainsError && <Banner tone="error">{domainsError}</Banner>}
-            {datasetError && <Banner tone="error">{datasetError}</Banner>}
-            {showDataset?.errorMessage && (
-              <Banner tone="error">
-                <span className="font-semibold">O scan falhou:</span> {showDataset.errorMessage}
-              </Banner>
-            )}
+        <main className={`flex-1 relative bg-grid ${isOps ? 'overflow-y-auto lg:overflow-hidden' : 'overflow-y-auto'}`}>
+          {isOps && shown ? (
+            <OpsRoom
+              dataset={shown}
+              events={shownEvents}
+              status={shownStatus}
+              replay={{
+                active: replay.active,
+                finished: replay.finished,
+                paused: replay.paused,
+                speed: replay.speed,
+                progress: replay.progress,
+                onTogglePause: replay.togglePause,
+                onSpeed: replay.setSpeed,
+                onStop: replay.stop,
+              }}
+              presenting={presentation.presenting}
+              onTogglePresent={presentation.toggle}
+              onOpenHost={setOpenHost}
+              onOpenFinding={openFinding}
+            />
+          ) : (
+            <div className="max-w-screen-2xl mx-auto px-5 pb-10 pt-5 space-y-4">
+              {domainsError && <Banner tone="error">{domainsError}</Banner>}
+              {datasetError && <Banner tone="error">{datasetError}</Banner>}
+              {showDataset?.errorMessage && (
+                <Banner tone="error">
+                  <span className="font-semibold">O scan falhou:</span> {showDataset.errorMessage}
+                </Banner>
+              )}
 
-            {domains === null && !domainsError && <Placeholder>Carregando…</Placeholder>}
+              {domains === null && !domainsError && <Placeholder>Carregando…</Placeholder>}
 
-            {domains?.length === 0 && (
-              <Placeholder>
-                <p className="mb-4">Nenhum domínio analisado ainda.</p>
-                <button
-                  onClick={() => setIsNewScanOpen(true)}
-                  className="px-4 py-2 rounded-lg bg-zinc-100 text-zinc-950 font-mono text-xs font-semibold uppercase tracking-wider cursor-pointer hover:bg-white"
-                >
-                  Iniciar primeira análise
-                </button>
-              </Placeholder>
-            )}
+              {domains?.length === 0 && (
+                <Placeholder>
+                  <p className="mb-4">Nenhum domínio analisado ainda.</p>
+                  <button
+                    onClick={() => setIsNewScanOpen(true)}
+                    className="px-4 py-2 rounded-lg bg-zinc-100 text-zinc-950 font-mono text-xs font-semibold uppercase tracking-wider cursor-pointer hover:bg-white"
+                  >
+                    Iniciar primeira análise
+                  </button>
+                </Placeholder>
+              )}
 
-            {selected && scanId == null && selected.verification && (
-              <div className="bg-surface border border-border rounded-lg p-6 max-w-2xl mx-auto w-full">
-                <DomainVerification
-                  domain={selected.name}
-                  challenge={selected.verification}
-                  onVerify={() => handleVerify(selected.id)}
-                />
-              </div>
-            )}
-            {selected && scanId == null && !selected.verification && (
-              <Placeholder>Nenhuma análise para este domínio ainda.</Placeholder>
-            )}
-            {selected && scanId != null && !showDataset && !datasetError && <Placeholder>Carregando análise…</Placeholder>}
+              {selected && scanId == null && selected.verification && (
+                <div className="bg-surface border border-border rounded-lg p-6 max-w-2xl mx-auto w-full">
+                  <DomainVerification domain={selected.name} challenge={selected.verification} onVerify={() => handleVerify(selected.id)} />
+                </div>
+              )}
+              {selected && scanId == null && !selected.verification && <Placeholder>Nenhuma análise para este domínio ainda.</Placeholder>}
+              {selected && scanId != null && !showDataset && !datasetError && <Placeholder>Carregando análise…</Placeholder>}
 
-            {showDataset && shown && (
-              <>
-                {viewScanId != null && (
-                  <div className="flex items-center justify-between gap-3 rounded-lg border border-med/30 bg-med/10 px-4 py-2.5 text-xs font-mono text-med">
-                    <span>Você está vendo uma análise anterior ({showDataset.date}).</span>
-                    <button onClick={() => handleViewScan(latestScanId!)} className="underline cursor-pointer hover:text-foreground">
-                      Voltar para a mais recente
-                    </button>
-                  </div>
-                )}
-                <SummaryCards stats={shown.stats} />
-                <AnalysisProgress stages={shown.stages} />
-                {showDataset.status === 'completed' && replay.available && (
-                  <ReplayBar
-                    active={replay.active}
-                    finished={replay.finished}
-                    paused={replay.paused}
-                    speed={replay.speed}
-                    progress={replay.progress}
-                    onStart={replay.start}
-                    onStop={replay.stop}
-                    onTogglePause={replay.togglePause}
-                    onSpeed={replay.setSpeed}
-                  />
-                )}
-                <LiveOperations
-                  scanId={shown.scanId}
-                  status={shownStatus}
-                  events={shownEvents}
-                  replay={replay.active}
-                />
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                  <AttackSurfaceMap
-                    domain={shown.domain}
-                    subdomains={shown.subdomains}
-                    findings={shown.findings}
-                    running={shown.status === 'running'}
-                    screenshotOf={(h) => (shownShots.includes(h) ? api.screenshotUrl(shown.scanId, h) : undefined)}
-                  />
-                  <SecurityChecklist
-                    stages={shown.stages}
-                    findings={shown.findings}
+              {showDataset && shown && (
+                <>
+                  {viewScanId != null && (
+                    <div className="flex items-center justify-between gap-3 rounded-lg border border-med/30 bg-med/10 px-4 py-2.5 text-xs font-mono text-med">
+                      <span>Você está vendo uma análise anterior ({showDataset.date}).</span>
+                      <button onClick={() => handleViewScan(latestScanId!)} className="underline cursor-pointer hover:text-foreground">
+                        Voltar para a mais recente
+                      </button>
+                    </div>
+                  )}
+                  <ResultsView
+                    tab={tab}
+                    onTab={setTab}
+                    shown={shown}
+                    real={showDataset}
                     events={shownEvents}
-                    subdomains={shown.subdomains}
-                  />
-                </div>
-                <SiteGallery
-                  scanId={shown.scanId}
-                  hosts={shownShots}
-                  subdomains={shown.subdomains}
-                  findings={shown.findings}
-                />
-                <SecurityFindings
-                  findingsList={shown.findings}
-                  readOnly={replay.active}
-                  onReviewed={() => setReloadTick((t) => t + 1)}
-                />
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                  <Infrastructure
-                    subdomainsList={shown.subdomains}
-                    openPortsList={shown.openPorts}
-                    takeoverRisksList={shown.takeoverRisks}
-                  />
-                  <CodeFindings
-                    endpointsList={shown.endpoints}
-                    secretsList={shown.secrets}
-                    sensitiveFilesList={shown.sensitiveFiles}
-                  />
-                </div>
-                {history.length > 1 && (
-                  <ScanHistory
+                    status={shownStatus}
+                    shots={shownShots}
                     history={history}
-                    currentScanId={showDataset.scanId}
-                    currentFindings={showDataset.findings}
-                    onSelect={handleViewScan}
+                    readOnly={replay.active}
+                    replayAvailable={showDataset.status === 'completed' && replay.available}
+                    onReplay={replay.start}
+                    onExitReplay={replay.stop}
+                    onViewScan={handleViewScan}
+                    onReviewed={() => setReloadTick((t) => t + 1)}
+                    focusFinding={focusFinding}
+                    onFocusFinding={setFocusFinding}
+                    onOpenHost={setOpenHost}
+                    presenting={presentation.presenting}
+                    onTogglePresent={presentation.toggle}
+                    tv={tv}
+                    onToggleTv={replay.available && showDataset.status === 'completed' ? toggleTv : undefined}
                   />
-                )}
-                <FinalReport dataset={showDataset} />
-              </>
-            )}
-          </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {shown && (
+            <>
+              <HostDrawer
+                host={openHost}
+                subdomains={shown.subdomains}
+                findings={shown.findings}
+                openPorts={shown.openPorts}
+                screenshotOf={screenshotOf}
+                onClose={() => setOpenHost(null)}
+                onOpenFinding={openFinding}
+              />
+              <FindingDrawer
+                findings={shown.findings}
+                selectedId={focusFinding}
+                onClose={() => setFocusFinding(null)}
+                readOnly={replay.active}
+                onReviewed={() => setReloadTick((t) => t + 1)}
+              />
+            </>
+          )}
         </main>
       </div>
+
+      <AnimatePresence>
+        {reveal && shown && (
+          <GradeReveal
+            domain={shown.domain}
+            score={scoreOf(shown.findings)}
+            grade={gradeOf(shown.findings)}
+            findings={shown.stats.findings}
+            onDone={endReveal}
+          />
+        )}
+      </AnimatePresence>
 
       <NewScanModal
         isOpen={isNewScanOpen}
@@ -350,6 +436,7 @@ export default function App() {
         onStartScan={handleStartScan}
         onVerify={handleVerify}
       />
+      {presentation.hud}
     </div>
   );
 }

@@ -148,6 +148,51 @@ export interface SubmitResponse {
   verification: VerificationChallenge | null;
 }
 
+/** Localização aproximada de um IP público (GET /api/scans/{id}/geo). */
+export interface ApiGeoPoint {
+  hostname: string;
+  active: boolean;
+  ip: string;
+  lat: number;
+  lon: number;
+  city: string | null;
+  country: string | null;
+  country_code: string | null;
+  org: string | null;
+}
+
+export interface ApiGeoResponse {
+  /** onde está o servidor que fez a análise (origem dos arcos) */
+  origin: { lat: number; lon: number; city: string | null; country: string | null } | null;
+  points: ApiGeoPoint[];
+}
+
+export type ChainStepKind = 'entry' | 'pivot' | 'impact';
+
+export interface ApiChainStep {
+  title: string;
+  description: string;
+  kind: ChainStepKind;
+  finding_ids: number[];
+}
+
+export interface ApiAttackChain {
+  id: string;
+  title: string;
+  impact: string;
+  severity: Severity;
+  steps: ApiChainStep[];
+}
+
+/** Cadeias de ataque: por regra (sempre) ou geradas pela IA (sob demanda). */
+export interface ApiAttackChainSet {
+  source: 'rules' | 'ai';
+  model: string | null;
+  generated_at: string;
+  chains: ApiAttackChain[];
+  warning: string | null;
+}
+
 export class ApiError extends Error {
   readonly status: number;
 
@@ -214,6 +259,11 @@ export const api = {
   listScreenshots: (scanId: number) => request<string[]>(`/api/scans/${scanId}/screenshots`),
   screenshotUrl: (scanId: number, hostname: string) =>
     `${BASE_URL}/api/scans/${scanId}/screenshots/${encodeURIComponent(hostname)}.jpg`,
+
+  getGeo: (scanId: number) => request<ApiGeoResponse>(`/api/scans/${scanId}/geo`),
+  getAttackChains: (scanId: number) => request<ApiAttackChainSet>(`/api/scans/${scanId}/attack-chains`),
+  generateAttackChains: (scanId: number) =>
+    request<ApiAttackChainSet>(`/api/scans/${scanId}/attack-chains`, { method: 'POST' }),
 
   getReport: (scanId: number) => request<ApiReport>(`/api/scans/${scanId}/report`),
 

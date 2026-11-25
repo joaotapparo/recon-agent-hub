@@ -53,6 +53,10 @@ export interface Subdomain {
   ports: number[];
   /** null = não verificado; "" = nenhum firewall detectado */
   waf?: string | null;
+  /** tecnologias detectadas pelo httpx (ex.: "nginx:1.19.0") */
+  tech: string[];
+  httpStatus?: number;
+  title?: string;
 }
 
 export interface OpenPort {
